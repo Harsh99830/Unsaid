@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import Header from '../components/navigation/Header';
 import PostCard from '../components/feed/PostCard';
 import BottomNavigation from '../components/navigation/BottomNavigation';
-import FloatingActionButton from '../components/FloatingActionButton';
+import Button from '../components/ui/Button';
+import { Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Tabs from '../components/ui/Tabs';
 
 const samplePosts = [
@@ -93,6 +95,7 @@ const tabs = [
 ];
 
 function App() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('home');
 
   const handleTabChange = (tab) => {
@@ -107,7 +110,16 @@ function App() {
         <Tabs tabs={tabs} />
       </main>
       
-      <FloatingActionButton />
+      {/* Floating Action Button */}
+      <div className="fixed bottom-24 right-6 z-50">
+        <button
+          onClick={() => navigate('/create')}
+          className="w-14 h-14 bg-[#f45925] hover:bg-[#e64a19] text-white rounded-full shadow-lg shadow-[#f45925]/40 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+        >
+          <Plus size={24} />
+        </button>
+      </div>
+      
       <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );

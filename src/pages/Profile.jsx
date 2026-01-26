@@ -3,6 +3,7 @@ import { Settings, Share2, Shield, Rss, Star, Calendar, MessageCircle, ArrowUp, 
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/navigation/BottomNavigation';
 import Tabs from '../components/ui/Tabs';
+import Button from '../components/ui/Button';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -183,10 +184,10 @@ const Profile = () => {
       </div>
 
       {/* Floating Action Button */}
-      <div className="fixed bottom-6 right-6 z-20">
-        <button 
-          className="flex items-center justify-center size-14 rounded-full bg-[#ee5b2b] text-white shadow-lg shadow-[#ee5b2b]/30 hover:scale-105 active:scale-95 transition-transform"
+      <div className="fixed bottom-24 right-6 z-50">
+        <button
           onClick={() => navigate('/create')}
+          className="w-14 h-14 bg-[#ee5b2b] hover:bg-[#d64a19] text-white rounded-full shadow-lg shadow-[#ee5b2b]/40 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
         >
           <Plus size={24} />
         </button>
