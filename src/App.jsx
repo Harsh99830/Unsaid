@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Header from './components/Header';
 import CategoryChips from './components/CategoryChips';
 import PostCard from './components/PostCard';
@@ -57,6 +57,12 @@ const categories = [
 ];
 
 function App() {
+  const [activeTab, setActiveTab] = useState('home');
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
+
   return (
     <div className="min-h-screen bg-[#f8f6f5] font-sans text-[#181311] antialiased">
       <Header />
@@ -72,7 +78,7 @@ function App() {
       </main>
       
       <FloatingActionButton />
-      <BottomNavigation />
+      <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }
