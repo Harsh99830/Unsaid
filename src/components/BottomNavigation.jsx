@@ -1,11 +1,12 @@
 import React from 'react';
+import { Home, Search, MessageCircle, User } from 'lucide-react';
 
 const BottomNavigation = ({ activeTab = 'home', onTabChange }) => {
   const navItems = [
-    { id: 'home', icon: '🏠', label: 'Home' },
-    { id: 'explore', icon: '🔍', label: 'Explore' },
-    { id: 'clubs', icon: '💬', label: 'chat' },
-    { id: 'profile', icon: '👤', label: 'Profile' }
+    { id: 'home', icon: Home, label: 'Home' },
+    { id: 'explore', icon: Search, label: 'Explore' },
+    { id: 'clubs', icon: MessageCircle, label: 'chat' },
+    { id: 'profile', icon: User, label: 'Profile' }
   ];
 
   return (
@@ -21,8 +22,8 @@ const BottomNavigation = ({ activeTab = 'home', onTabChange }) => {
             }`}
             onClick={() => onTabChange && onTabChange(item.id)}
           >
-            <span className="text-xl">
-              {item.icon}
+            <span className={activeTab === item.id ? 'text-[#f45925]' : 'text-gray-400'}>
+              <item.icon size={24} fill={activeTab === item.id ? 'currentColor' : 'none'} />
             </span>
             <span className={`text-[10px] ${activeTab === item.id ? 'font-bold' : 'font-medium'}`}>
               {item.label}

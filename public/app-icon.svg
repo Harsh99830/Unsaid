@@ -1,0 +1,34 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#f8f6f5" rx="180" ry="180"/>
+  
+  <!-- Muted Speech Bubble -->
+  <g transform="translate(512, 512)">
+    <!-- Main speech bubble shape -->
+    <path d="M -180 -80 
+             C -180 -160, -120 -220, -40 -220
+             L 120 -220
+             C 200 -220, 260 -160, 260 -80
+             L 260 40
+             C 260 120, 200 180, 120 180
+             L 40 180
+             C 20 180, 0 190, -20 200
+             L -60 220
+             C -80 230, -90 220, -85 200
+             L -75 160
+             C -170 150, -180 70, -180 -80
+             Z" 
+          fill="#6b7280" 
+          rx="24" ry="24"/>
+    
+    <!-- Muted indicator (simple lines) -->
+    <g transform="translate(0, -20)">
+      <!-- Top line -->
+      <rect x="-80" y="-40" width="160" height="12" fill="#f8f6f5" rx="6" ry="6"/>
+      <!-- Middle line -->
+      <rect x="-60" y="-10" width="120" height="12" fill="#f8f6f5" rx="6" ry="6"/>
+      <!-- Bottom line -->
+      <rect x="-40" y="20" width="80" height="12" fill="#f8f6f5" rx="6" ry="6"/>
+    </g>
+  </g>
+</svg>

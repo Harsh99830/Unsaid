@@ -1,4 +1,5 @@
 import React from 'react';
+import { Heart, MessageCircle, Share2, MoreHorizontal, User } from 'lucide-react';
 
 const PostCard = ({ post, onLike, onComment, onShare }) => {
   const getAvatarClass = (color) => {
@@ -22,14 +23,7 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
   };
 
   const getAvatarIcon = (avatar) => {
-    switch (avatar) {
-      case 'person_off':
-        return '👤';
-      case 'psychology':
-        return '🧠';
-      default:
-        return '👤';
-    }
+    return <User size={20} />;
   };
 
   return (
@@ -37,7 +31,7 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
       <div className="p-4">
         <div className="flex items-center gap-3 mb-3">
           <div className={`size-10 rounded-full ${getAvatarClass(post.avatarColor)} flex items-center justify-center`}>
-            <span className={`text-lg ${getAvatarIconClass(post.avatarColor)}`}>
+            <span className={`${getAvatarIconClass(post.avatarColor)}`}>
               {getAvatarIcon(post.avatar)}
             </span>
           </div>
@@ -70,8 +64,8 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
             }`}
             onClick={() => onLike && onLike(post.id)}
           >
-            <span className={`text-[22px] ${post.isLiked ? '' : ''}`}>
-              {post.isLiked ? '❤️' : '🤍'}
+            <span className={`${post.isLiked ? 'text-[#f45925]' : 'text-gray-500'}`}>
+              {post.isLiked ? <Heart size={22} fill="currentColor" /> : <Heart size={22} />}
             </span>
             <span className="text-sm font-semibold">{post.likes}</span>
           </button>
@@ -80,7 +74,9 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
             className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-[#f45925] transition-colors"
             onClick={() => onComment && onComment(post.id)}
           >
-            <span className="text-[22px]">💬</span>
+            <span className="text-gray-500">
+              <MessageCircle size={22} />
+            </span>
             <span className="text-sm font-semibold">{post.comments}</span>
           </button>
           
@@ -88,13 +84,15 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
             className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-[#f45925] transition-colors"
             onClick={() => onShare && onShare(post.id)}
           >
-            <span className="text-[22px]">📤</span>
+            <span className="text-gray-500">
+              <Share2 size={22} />
+            </span>
             <span className="text-sm font-semibold">{post.shares}</span>
           </button>
         </div>
         
         <button className="p-2 text-gray-400">
-          <span className="text-xl">⋯</span>
+          <MoreHorizontal size={20} />
         </button>
       </div>
     </article>
