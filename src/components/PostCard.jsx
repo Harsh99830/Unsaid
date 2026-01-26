@@ -1,7 +1,10 @@
 import React from 'react';
 import { Heart, MessageCircle, Share2, MoreHorizontal, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const PostCard = ({ post, onLike, onComment, onShare }) => {
+  const navigate = useNavigate();
+
   const getAvatarClass = (color) => {
     switch (color) {
       case 'primary':
@@ -27,7 +30,10 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
   };
 
   return (
-    <article className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <article 
+      className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => navigate('/post')}
+    >
       <div className="p-4">
         <div className="flex items-center gap-3 mb-3">
           <div className={`size-10 rounded-full ${getAvatarClass(post.avatarColor)} flex items-center justify-center`}>
@@ -62,7 +68,10 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
             className={`flex items-center gap-2 px-3 py-2 transition-colors ${
               post.isLiked ? 'text-[#f45925]' : 'text-gray-500 hover:text-[#f45925]'
             }`}
-            onClick={() => onLike && onLike(post.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLike && onLike(post.id);
+            }}
           >
             <span className={`${post.isLiked ? 'text-[#f45925]' : 'text-gray-500'}`}>
               {post.isLiked ? <Heart size={22} fill="currentColor" /> : <Heart size={22} />}
@@ -72,7 +81,10 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
           
           <button 
             className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-[#f45925] transition-colors"
-            onClick={() => onComment && onComment(post.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onComment && onComment(post.id);
+            }}
           >
             <span className="text-gray-500">
               <MessageCircle size={22} />
@@ -82,7 +94,10 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
           
           <button 
             className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-[#f45925] transition-colors"
-            onClick={() => onShare && onShare(post.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare && onShare(post.id);
+            }}
           >
             <span className="text-gray-500">
               <Share2 size={22} />
@@ -91,7 +106,12 @@ const PostCard = ({ post, onLike, onComment, onShare }) => {
           </button>
         </div>
         
-        <button className="p-2 text-gray-400">
+        <button 
+          className="p-2 text-gray-400"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
           <MoreHorizontal size={20} />
         </button>
       </div>
