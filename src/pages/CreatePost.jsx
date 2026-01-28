@@ -1,34 +1,69 @@
 import React, { useState } from 'react';
-import { ArrowLeft, X, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { uploadImage } from '../services/cloudinary';
+import Button from '../components/ui/Button';
 
 const CreatePost = () => {
   const navigate = useNavigate();
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Show preview immediately
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
+
+      // Upload to Cloudinary
+      setIsUploading(true);
+      try {
+        const result = await uploadImage(file);
+        setUploadedImage(result);
+        console.log('Image uploaded successfully:', result);
+      } catch (error) {
+        console.error('Upload failed:', error);
+        // Remove preview if upload failed
+        setImagePreview(null);
+        alert('Image upload failed. Please try again.');
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!content.trim()) return;
+
+    // Prepare post data
+    const postData = {
+      content: content.trim(),
+      category: category.trim(),
+      image: uploadedImage,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('Post created:', postData);
+    
     // Here you would typically send the post data to your backend
-    console.log('Post created:', { content, category, image: imagePreview });
+    // For now, we'll just log it and navigate back
+    
     // Navigate back to home after creating post
     navigate('/');
   };
 
   const removeImage = () => {
     setImagePreview(null);
+    setUploadedImage(null);
   };
 
   return (
@@ -44,13 +79,13 @@ const CreatePost = () => {
             <span className="text-sm font-medium">Cancel</span>
           </button>
           <h1 className="text-lg font-semibold text-[#181311]">Create Post</h1>
-          <button 
-            className="text-[#f45925] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          <Button 
+            variant="primary"
             onClick={handleSubmit}
-            disabled={!content.trim()}
+            disabled={!content.trim() || isUploading}
           >
             Post
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -109,10 +144,19 @@ const CreatePost = () => {
                   alt="Preview" 
                   className="w-full h-48 object-cover rounded-lg"
                 />
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                    <div className="text-white flex items-center gap-2">
+                      <Loader2 className="animate-spin" size={20} />
+                      <span>Uploading...</span>
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={removeImage}
                   className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70 transition-colors"
+                  disabled={isUploading}
                 >
                   <X size={16} />
                 </button>
@@ -127,6 +171,7 @@ const CreatePost = () => {
                   accept="image/*"
                   onChange={handleImageUpload}
                   className="hidden"
+                  disabled={isUploading}
                 />
               </label>
             )}
