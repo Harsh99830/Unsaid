@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/navigation/Header';
 import PostCard from '../components/feed/PostCard';
 import BottomNavigation from '../components/navigation/BottomNavigation';
@@ -6,6 +6,8 @@ import Button from '../components/ui/Button';
 import { Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Tabs from '../components/ui/Tabs';
+import { getAllPosts, getPostsByCategory } from '../services/posts';
+import CloudinaryImage from '../components/CloudinaryImage';
 
 const samplePosts = [
   {
@@ -51,56 +53,165 @@ const samplePosts = [
   }
 ];
 
-const tabs = [
-  { 
-    label: 'Feed', 
-    content: (
-      <div className="flex flex-col gap-4 px-4">
-        {samplePosts.map(post => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </div>
-    )
-  },
-  { 
-    label: 'Engineering', 
-    content: (
-      <div className="flex flex-col gap-4 px-4">
-        {samplePosts.filter(post => post.department === 'Engineering Dept').map(post => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </div>
-    )
-  },
-  { 
-    label: 'Freshman', 
-    content: (
-      <div className="flex flex-col gap-4 px-4">
-        <div className="text-center py-8 text-gray-500">
-          <p>No freshman posts yet</p>
-        </div>
-      </div>
-    )
-  },
-  { 
-    label: 'Clubs', 
-    content: (
-      <div className="flex flex-col gap-4 px-4">
-        <div className="text-center py-8 text-gray-500">
-          <p>No club posts yet</p>
-        </div>
-      </div>
-    )
-  }
-];
-
 function App() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('home');
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [engineeringPosts, setEngineeringPosts] = useState([]);
+  const [freshmanPosts, setFreshmanPosts] = useState([]);
+  const [clubsPosts, setClubsPosts] = useState([]);
+
+  // Fetch posts from Supabase
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      const allPosts = await getAllPosts();
+      const engineering = await getPostsByCategory('Engineering');
+      const freshman = await getPostsByCategory('Freshman');
+      const clubs = await getPostsByCategory('Clubs');
+      
+      setPosts(allPosts);
+      setEngineeringPosts(engineering);
+      setFreshmanPosts(freshman);
+      setClubsPosts(clubs);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
   };
+
+  // Format post data for PostCard component
+  const formatPostForCard = (post) => {
+    const timeAgo = getTimeAgo(post.created_at);
+    return {
+      id: post.id,
+      author: post.author_name,
+      timestamp: timeAgo,
+      department: post.category,
+      avatar: 'person_off',
+      avatarColor: 'gray',
+      content: post.content,
+      image: post.image_url,
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      shares: post.shares || 0,
+      isLiked: false
+    };
+  };
+
+  const getTimeAgo = (timestamp) => {
+    if (!timestamp) return 'Just now';
+    
+    const now = new Date();
+    const postTime = new Date(timestamp);
+    const diffInMinutes = Math.floor((now - postTime) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const tabs = [
+    { 
+      label: 'Feed', 
+      content: (
+        <div className="mt-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-gray-500">Loading posts...</div>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No posts yet. Be the first to share something!</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 px-4">
+              {posts.map(post => (
+                <PostCard key={post.id} post={formatPostForCard(post)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    },
+    { 
+      label: 'Engineering', 
+      content: (
+        <div className="mt-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-gray-500">Loading posts...</div>
+            </div>
+          ) : engineeringPosts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No Engineering posts yet.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 px-4">
+              {engineeringPosts.map(post => (
+                <PostCard key={post.id} post={formatPostForCard(post)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    },
+    { 
+      label: 'Freshman', 
+      content: (
+        <div className="mt-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-gray-500">Loading posts...</div>
+            </div>
+          ) : freshmanPosts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No Freshman posts yet.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 px-4">
+              {freshmanPosts.map(post => (
+                <PostCard key={post.id} post={formatPostForCard(post)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    },
+    { 
+      label: 'Clubs', 
+      content: (
+        <div className="mt-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="text-gray-500">Loading posts...</div>
+            </div>
+          ) : clubsPosts.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No Club posts yet.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 px-4">
+              {clubsPosts.map(post => (
+                <PostCard key={post.id} post={formatPostForCard(post)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-[#f8f6f5] font-sans text-[#181311] antialiased">

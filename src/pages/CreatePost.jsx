@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { uploadImage } from '../services/cloudinary';
+import { createPost } from '../services/posts';
 import Button from '../components/ui/Button';
 
 const CreatePost = () => {
@@ -44,21 +45,30 @@ const CreatePost = () => {
     
     if (!content.trim()) return;
 
-    // Prepare post data
-    const postData = {
-      content: content.trim(),
-      category: category.trim(),
-      image: uploadedImage,
-      timestamp: new Date().toISOString()
-    };
+    setIsUploading(true);
+    
+    try {
+      // Prepare post data
+      const postData = {
+        content: content.trim(),
+        category: category.trim() || 'General',
+        image_url: uploadedImage?.url || null,
+        image_public_id: uploadedImage?.publicId || null,
+        author_name: 'Anonymous'
+      };
 
-    console.log('Post created:', postData);
-    
-    // Here you would typically send the post data to your backend
-    // For now, we'll just log it and navigate back
-    
-    // Navigate back to home after creating post
-    navigate('/');
+      // Save to Supabase
+      const savedPost = await createPost(postData);
+      console.log('Post saved to database:', savedPost);
+      
+      // Navigate back to home after creating post
+      navigate('/');
+    } catch (error) {
+      console.error('Error creating post:', error);
+      alert('Failed to create post. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const removeImage = () => {
@@ -83,8 +93,9 @@ const CreatePost = () => {
             variant="primary"
             onClick={handleSubmit}
             disabled={!content.trim() || isUploading}
+            loading={isUploading}
           >
-            Post
+            {isUploading ? 'Posting...' : 'Post'}
           </Button>
         </div>
       </header>
