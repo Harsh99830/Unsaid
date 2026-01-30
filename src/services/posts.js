@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabaseClient } from './supabase';
 
 // Posts table structure
 export const Post = {
@@ -8,6 +8,7 @@ export const Post = {
   image_url: 'string',
   image_public_id: 'string',
   author_name: 'string',
+  author_id: 'string',
   created_at: 'string',
   likes: 'number',
   comments: 'number',
@@ -17,7 +18,10 @@ export const Post = {
 // Create a new post
 export const createPost = async (postData) => {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase client not initialized');
+    
+    const { data, error } = await client
       .from('posts')
       .insert([{
         content: postData.content,
@@ -25,6 +29,7 @@ export const createPost = async (postData) => {
         image_url: postData.image_url,
         image_public_id: postData.image_public_id,
         author_name: postData.author_name,
+        author_id: postData.author_id,
         likes: 0,
         comments: 0,
         shares: 0
@@ -47,27 +52,40 @@ export const createPost = async (postData) => {
 // Get all posts
 export const getAllPosts = async () => {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return [];
+    
+    const { data, error } = await client
       .from('posts')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching posts:', error);
+      
+      // Check if posts table doesn't exist
+      if (error.code === '42P01') {
+        console.error('POSTS TABLE DOES NOT EXIST! Please create the posts table in Supabase.');
+        return []; // Return empty array instead of throwing
+      }
+      
       throw error;
     }
 
     return data || [];
   } catch (error) {
     console.error('Error in getAllPosts:', error);
-    throw error;
+    return []; // Return empty array on error to prevent app crash
   }
 };
 
 // Get posts by category
 export const getPostsByCategory = async (category) => {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return [];
+    
+    const { data, error } = await client
       .from('posts')
       .select('*')
       .eq('category', category)
@@ -88,9 +106,12 @@ export const getPostsByCategory = async (category) => {
 // Like a post
 export const likePost = async (postId) => {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase client not initialized');
+    
+    const { data, error } = await client
       .from('posts')
-      .update({ likes: supabase.raw('likes + 1') })
+      .update({ likes: client.raw('likes + 1') })
       .eq('id', postId)
       .select();
 

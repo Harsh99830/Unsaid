@@ -1,14 +1,44 @@
-import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Button from '../components/ui/Button';
+import { useAuth } from '../hooks/useAuth.js';
+import { getSupabaseClient } from '../services/supabase';
 
 const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, hasUsername, profileLoading } = useAuth();
   const email = location.state?.email || '';
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    // If user is already authenticated, redirect appropriately
+    if (user) {
+      if (hasUsername === true) {
+        console.log('User already has username, redirecting to feed');
+        navigate('/feed', { replace: true });
+      } else if (hasUsername === false) {
+        console.log('User authenticated but no username, redirecting to username selection');
+        navigate('/username-selection', { replace: true });
+      }
+      // If hasUsername is null, wait for profile check to complete
+    }
+  }, [user, hasUsername, navigate]);
+
+  // Show loading state while checking profile (moved after all hooks)
+  if (user && profileLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#FF5722] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500">Checking profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (index, value) => {
     if (value.length > 1) return; // Only allow single digit
@@ -18,7 +48,7 @@ const VerifyOTP = () => {
     setOtp(newOtp);
 
     // Auto-focus next input
-    if (value && index < 5) {
+    if (value && index < 7) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       if (nextInput) nextInput.focus();
     }
@@ -35,25 +65,98 @@ const VerifyOTP = () => {
     e.preventDefault();
     const otpValue = otp.join('');
     
-    if (otpValue.length !== 6) {
-      alert('Please enter all 6 digits');
+    // Check if user is already authenticated
+    if (user) {
+      setError('You are already authenticated. Redirecting...');
+      setTimeout(() => {
+        if (hasUsername === true) {
+          navigate('/feed', { replace: true });
+        } else if (hasUsername === false) {
+          navigate('/username-selection', { replace: true });
+        }
+      }, 1000);
+      return;
+    }
+    
+    if (otpValue.length !== 8) {
+      setError('Please enter all 8 digits');
       return;
     }
 
     setIsLoading(true);
+    setError('');
     
-    // Simulate OTP verification
-    setTimeout(() => {
-      console.log('Verifying OTP:', otpValue, 'for email:', email);
-      // Navigate to home page after successful verification
-      navigate('/');
+    try {
+      console.log('Verifying OTP for email:', email, 'with token:', otpValue);
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Supabase client not initialized');
+      
+      const { data, error } = await client.auth.verifyOtp({
+        email: email,
+        token: otpValue,
+        type: 'email'
+      });
+
+      if (error) {
+        console.error('OTP verification error:', error);
+        throw error;
+      }
+
+      console.log('OTP verification successful, data:', data);
+      
+      // Manually check session after verification
+      const { data: { session }, error: sessionError } = await client.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session check error:', sessionError);
+        throw new Error('Verification successful but failed to get session');
+      }
+      
+      console.log('Session after verification:', session);
+      
+      // If verification successful, the auth state change will handle navigation
+      // But we can add a small delay and manual check
+      setTimeout(() => {
+        if (session?.user) {
+          console.log('User is authenticated, navigation will happen automatically');
+        } else {
+          setError('Verification successful but authentication failed. Please try again.');
+        }
+      }, 1000);
+      
+    } catch (err) {
+      console.error('OTP verification error:', err);
+      setError(err.message || 'Invalid OTP. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
-  const handleResend = () => {
-    console.log('Resending OTP to:', email);
-    // Implement resend logic
+  const handleResend = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Supabase client not initialized');
+      
+      const { error } = await client.auth.signInWithOtp({
+        email: email,
+        options: {
+          shouldCreateUser: true
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('OTP resent to:', email);
+    } catch (err) {
+      setError(err.message || 'Failed to resend OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -75,10 +178,13 @@ const VerifyOTP = () => {
               ✓
             </div>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#181311]">Verify Email</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#181311]">Enter OTP Code</h1>
           <p className="text-gray-500 font-medium">
-            We sent a 6-digit code to<br />
+            We sent an 8-digit code to<br />
             <span className="text-[#FF5722] font-semibold">{email}</span>
+          </p>
+          <p className="text-sm text-gray-400">
+            Enter the code from your email to sign in
           </p>
         </div>
 
@@ -86,7 +192,7 @@ const VerifyOTP = () => {
         <form onSubmit={handleVerify} className="w-full space-y-6">
           <div className="space-y-4">
             <label className="block text-sm font-semibold text-gray-700 ml-1">
-              Enter Verification Code
+              Enter 8-Digit Verification Code
             </label>
             <div className="flex gap-2 justify-center">
               {otp.map((digit, index) => (
@@ -100,17 +206,24 @@ const VerifyOTP = () => {
                   value={digit}
                   onChange={(e) => handleInputChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-[#FF5722] focus:outline-none focus:ring-1 focus:ring-[#FF5722] transition-all duration-200"
+                  className="w-10 h-12 text-center text-lg font-bold border-2 border-gray-200 rounded-xl focus:border-[#FF5722] focus:outline-none focus:ring-1 focus:ring-[#FF5722] transition-all duration-200"
                   required
                 />
               ))}
             </div>
           </div>
 
+          {error && (
+            <div className="bg-red-50 p-4 rounded-2xl flex gap-3 items-start border border-red-100">
+              <AlertCircle size={20} className="text-red-500 shrink-0" />
+              <p className="text-sm leading-relaxed text-red-600">{error}</p>
+            </div>
+          )}
+
           <button
             type="submit"
             className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white font-bold py-4 rounded-2xl shadow-lg shadow-[#FF5722]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={otp.join('').length !== 6 || isLoading}
+            disabled={otp.join('').length !== 8 || isLoading}
           >
             {isLoading ? (
               <>
@@ -119,7 +232,7 @@ const VerifyOTP = () => {
               </>
             ) : (
               <>
-                Verify Email
+                Verify Code
                 <ArrowRight size={20} />
               </>
             )}
@@ -131,9 +244,10 @@ const VerifyOTP = () => {
               <button
                 type="button"
                 onClick={handleResend}
-                className="text-[#FF5722] font-semibold hover:underline"
+                disabled={isLoading}
+                className="text-[#FF5722] font-semibold hover:underline disabled:opacity-50"
               >
-                Resend OTP
+                {isLoading ? 'Sending...' : 'Resend OTP'}
               </button>
             </p>
           </div>

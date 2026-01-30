@@ -1,26 +1,36 @@
 import React, { useState } from 'react';
-import { School, ArrowRight, Mail, Shield, ExternalLink } from 'lucide-react';
+import { School, ArrowRight, Mail, Shield, ExternalLink, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
+import { useAuth } from '../hooks/useAuth.js';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { signInWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email) return;
 
     setIsLoading(true);
+    setError('');
     
-    // Simulate sending OTP
-    setTimeout(() => {
-      console.log('OTP sent to:', email);
-      // Navigate to OTP verification page
+    try {
+      await signInWithEmail(email);
       navigate('/verify-otp', { state: { email } });
+    } catch (err) {
+      console.error('Login error:', err);
+      if (err.message.includes('500')) {
+        setError('Server configuration error. Please check Supabase email settings.');
+      } else {
+        setError(err.message || 'Failed to send OTP. Please try again.');
+      }
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleEmailChange = (e) => {
@@ -73,6 +83,13 @@ const Login = () => {
             Send OTP
             <ArrowRight size={20} />
           </Button>
+
+          {error && (
+            <div className="bg-red-50 p-4 rounded-2xl flex gap-3 items-start border border-red-100">
+              <AlertCircle size={20} className="text-red-500 shrink-0" />
+              <p className="text-sm leading-relaxed text-red-600">{error}</p>
+            </div>
+          )}
 
           <div className="bg-gray-50 p-4 rounded-2xl flex gap-3 items-start border border-gray-100">
             <Shield size={20} className="text-[#FF5722] shrink-0" />

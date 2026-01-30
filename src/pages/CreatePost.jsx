@@ -4,9 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { uploadImage } from '../services/cloudinary';
 import { createPost } from '../services/posts';
 import Button from '../components/ui/Button';
+import { useAuth } from '../hooks/useAuth.js';
+import { getUserProfile } from '../services/userProfile.js';
 
 const CreatePost = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
@@ -48,13 +51,25 @@ const CreatePost = () => {
     setIsUploading(true);
     
     try {
+      // Get user profile for username
+      let username = 'Anonymous';
+      if (user) {
+        try {
+          const profile = await getUserProfile(user.id);
+          username = profile?.username || 'Anonymous';
+        } catch (error) {
+          console.log('Could not fetch user profile, using Anonymous');
+        }
+      }
+
       // Prepare post data
       const postData = {
         content: content.trim(),
         category: category.trim() || 'General',
         image_url: uploadedImage?.url || null,
         image_public_id: uploadedImage?.publicId || null,
-        author_name: 'Anonymous'
+        author_name: username,
+        author_id: user?.id || null
       };
 
       // Save to Supabase
