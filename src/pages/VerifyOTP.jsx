@@ -15,30 +15,9 @@ const VerifyOTP = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // If user is already authenticated, redirect appropriately
-    if (user) {
-      if (hasUsername === true) {
-        console.log('User already has username, redirecting to feed');
-        navigate('/feed', { replace: true });
-      } else if (hasUsername === false) {
-        console.log('User authenticated but no username, redirecting to username selection');
-        navigate('/username-selection', { replace: true });
-      }
-      // If hasUsername is null, wait for profile check to complete
-    }
-  }, [user, hasUsername, navigate]);
-
-  // Show loading state while checking profile (moved after all hooks)
-  if (user && profileLoading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-[#FF5722] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">Checking profile...</p>
-        </div>
-      </div>
-    );
-  }
+    // Navigation is now handled by the routing system in main.jsx
+    // No need for manual navigation here
+  }, []);
 
   const handleInputChange = (index, value) => {
     if (value.length > 1) return; // Only allow single digit
@@ -64,19 +43,6 @@ const VerifyOTP = () => {
   const handleVerify = async (e) => {
     e.preventDefault();
     const otpValue = otp.join('');
-    
-    // Check if user is already authenticated
-    if (user) {
-      setError('You are already authenticated. Redirecting...');
-      setTimeout(() => {
-        if (hasUsername === true) {
-          navigate('/feed', { replace: true });
-        } else if (hasUsername === false) {
-          navigate('/username-selection', { replace: true });
-        }
-      }, 1000);
-      return;
-    }
     
     if (otpValue.length !== 8) {
       setError('Please enter all 8 digits');

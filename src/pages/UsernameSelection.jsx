@@ -19,8 +19,11 @@ const UsernameSelection = () => {
     generateUsernames();
   }, []);
 
+<<<<<<< HEAD
   // NO REDIRECT LOGIC - let main.jsx handle everything
 
+=======
+>>>>>>> 3910c22f58bd280bf77d846aaf4328065e78f255
   const generateUsernames = async () => {
     setIsGenerating(true);
     try {

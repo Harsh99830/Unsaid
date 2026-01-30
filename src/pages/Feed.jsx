@@ -84,6 +84,20 @@ function App() {
     fetchUserProfile();
   }, [user]);
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    // Redirect to username selection if user exists but no profile
+    if (user && !userProfile) {
+      navigate('/username-selection');
+      return;
+    }
+  }, [user, userProfile, navigate]);
+
   // Fetch posts from Supabase
   useEffect(() => {
     if (user) {
