@@ -3,11 +3,12 @@ import Header from '../components/navigation/Header';
 import PostCard from '../components/feed/PostCard';
 import BottomNavigation from '../components/navigation/BottomNavigation';
 import Button from '../components/ui/Button';
-import { Plus } from 'lucide-react';
+import { Plus, User, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Tabs from '../components/ui/Tabs';
 import { getAllPosts, getPostsByCategory } from '../services/posts';
 import CloudinaryImage from '../components/CloudinaryImage';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 const samplePosts = [
   {
@@ -55,6 +56,7 @@ const samplePosts = [
 
 function App() {
   const navigate = useNavigate();
+  const { user, userProfile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,10 +64,35 @@ function App() {
   const [freshmanPosts, setFreshmanPosts] = useState([]);
   const [clubsPosts, setClubsPosts] = useState([]);
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    // Redirect to username selection if user exists but no profile
+    if (user && !userProfile) {
+      navigate('/username-selection');
+      return;
+    }
+  }, [user, userProfile, navigate]);
+
   // Fetch posts from Supabase
   useEffect(() => {
-    fetchPosts();
-  }, []);
+    if (user && userProfile) {
+      fetchPosts();
+    }
+  }, [user, userProfile]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   const fetchPosts = async () => {
     try {
@@ -215,9 +242,24 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#f8f6f5] font-sans text-[#181311] antialiased">
-      <Header />
+      <Header 
+        user={userProfile}
+        onSignOut={handleSignOut}
+      />
       
       <main className="max-w-md mx-auto pb-24">
+        <div className="bg-white p-4 m-4 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#FF5722] rounded-full flex items-center justify-center text-white font-semibold">
+              {userProfile?.username?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="font-semibold text-[#181311]">{userProfile?.username}</p>
+              <p className="text-sm text-gray-500">Welcome back!</p>
+            </div>
+          </div>
+        </div>
+        
         <Tabs tabs={tabs} />
       </main>
       

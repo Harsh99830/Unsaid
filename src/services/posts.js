@@ -54,13 +54,20 @@ export const getAllPosts = async () => {
 
     if (error) {
       console.error('Error fetching posts:', error);
+      
+      // Check if posts table doesn't exist
+      if (error.code === '42P01') {
+        console.error('POSTS TABLE DOES NOT EXIST! Please create the posts table in Supabase.');
+        return []; // Return empty array instead of throwing
+      }
+      
       throw error;
     }
 
     return data || [];
   } catch (error) {
     console.error('Error in getAllPosts:', error);
-    throw error;
+    return []; // Return empty array on error to prevent app crash
   }
 };
 
