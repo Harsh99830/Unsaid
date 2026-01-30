@@ -53,7 +53,34 @@ const UsernameSelection = () => {
       const profile = await createUserProfileIfNotExists(user, selectedUsername);
       
       console.log('✅ Profile creation successful:', profile.username);
-      navigate('/');
+      
+      // Show success message and redirect to feed
+      setError('');
+      
+      // Create success message element
+      const successDiv = document.createElement('div');
+      successDiv.className = 'bg-green-50 p-4 rounded-2xl flex gap-3 items-start border border-green-100 mb-4';
+      successDiv.innerHTML = `
+        <svg class="w-5 h-5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        <p class="text-sm leading-relaxed text-green-600">Account created successfully! Welcome to Unsaid! 🎉</p>
+      `;
+      
+      // Insert success message before the form
+      const form = document.querySelector('form');
+      if (form && form.parentNode) {
+        form.parentNode.insertBefore(successDiv, form);
+        
+        // Redirect to feed after showing success message
+        setTimeout(() => {
+          // Force a page reload to refresh auth state
+          window.location.href = '/feed';
+        }, 2000);
+      } else {
+        // Fallback: redirect immediately if form not found
+        window.location.href = '/feed';
+      }
     } catch (err) {
       console.error('Username selection error:', err);
       setError(err.message || 'Failed to save username. Please try again.');

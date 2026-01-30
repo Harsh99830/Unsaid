@@ -13,11 +13,32 @@ const VerifyOTP = () => {
   const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [resendTimeLeft, setResendTimeLeft] = useState(120); // 2 minutes in seconds
+  const [canResend, setCanResend] = useState(false);
 
   useEffect(() => {
     // Navigation is now handled by the routing system in main.jsx
     // No need for manual navigation here
   }, []);
+
+  // Timer for OTP expiration (only for UI display, not blocking verification)
+  useEffect(() => {
+    if (timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [timeLeft]);
+
+  // Timer for resend functionality
+  useEffect(() => {
+    if (resendTimeLeft > 0) {
+      const timer = setTimeout(() => setResendTimeLeft(resendTimeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [resendTimeLeft]);
 
   const handleInputChange = (index, value) => {
     if (value.length > 1) return; // Only allow single digit
@@ -65,7 +86,14 @@ const VerifyOTP = () => {
 
       if (error) {
         console.error('OTP verification error:', error);
-        throw error;
+        
+        // Don't block on expiration - let user try anyway
+        if (error.message.includes('expired') || error.message.includes('invalid')) {
+          setError('OTP verification failed. Please check the OTP code and try again, or request a new OTP.');
+        } else {
+          setError(error.message || 'OTP verification failed. Please try again.');
+        }
+        return;
       }
 
       console.log('OTP verification successful, data:', data);
@@ -80,15 +108,51 @@ const VerifyOTP = () => {
       
       console.log('Session after verification:', session);
       
-      // If verification successful, the auth state change will handle navigation
-      // But we can add a small delay and manual check
-      setTimeout(() => {
-        if (session?.user) {
-          console.log('User is authenticated, navigation will happen automatically');
+      // Update UI to show verification successful
+      setError('');
+      
+      // Show success message briefly before redirect
+      const successDiv = document.createElement('div');
+      successDiv.className = 'bg-green-50 p-4 rounded-2xl flex gap-3 items-start border border-green-100 mb-4';
+      successDiv.innerHTML = `
+        <svg class="w-5 h-5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        <p class="text-sm leading-relaxed text-green-600">Verification successful! Redirecting...</p>
+      `;
+      
+      // Insert success message before the form
+      const form = document.querySelector('form');
+      if (form && form.parentNode) {
+        form.parentNode.insertBefore(successDiv, form);
+        
+        // Remove success message after redirect
+        setTimeout(() => {
+          if (successDiv.parentNode) {
+            successDiv.parentNode.removeChild(successDiv);
+          }
+        }, 3000);
+      }
+      
+      // Check if user has profile to determine redirect
+      try {
+        const { checkUserHasUsername } = await import('../services/userProfile.js');
+        const hasUsername = await checkUserHasUsername(session.user.id);
+        
+        console.log('User has username:', hasUsername);
+        
+        if (hasUsername) {
+          console.log('Redirecting to feed...');
+          navigate('/feed', { replace: true });
         } else {
-          setError('Verification successful but authentication failed. Please try again.');
+          console.log('Redirecting to username selection...');
+          navigate('/username-selection', { replace: true });
         }
-      }, 1000);
+      } catch (profileError) {
+        console.error('Error checking user profile:', profileError);
+        // Default to username selection if profile check fails
+        navigate('/username-selection', { replace: true });
+      }
       
     } catch (err) {
       console.error('OTP verification error:', err);
@@ -118,6 +182,13 @@ const VerifyOTP = () => {
       }
 
       console.log('OTP resent to:', email);
+      
+      // Reset both timers and clear OTP
+      setTimeLeft(600); // Reset 10 minutes
+      setResendTimeLeft(120); // Reset 2 minutes
+      setCanResend(false);
+      setOtp(['', '', '', '', '', '', '', '']);
+      setError('');
     } catch (err) {
       setError(err.message || 'Failed to resend OTP. Please try again.');
     } finally {
@@ -151,6 +222,9 @@ const VerifyOTP = () => {
           </p>
           <p className="text-sm text-gray-400">
             Enter the code from your email to sign in
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Check your spam folder if you don't see the email
           </p>
         </div>
 
@@ -210,12 +284,22 @@ const VerifyOTP = () => {
               <button
                 type="button"
                 onClick={handleResend}
-                disabled={isLoading}
-                className="text-[#FF5722] font-semibold hover:underline disabled:opacity-50"
+                disabled={isLoading || !canResend}
+                className="text-[#FF5722] font-semibold hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Sending...' : 'Resend OTP'}
+                {isLoading ? 'Sending...' : canResend ? 'Resend OTP' : `Resend in ${Math.floor(resendTimeLeft / 60)}:${(resendTimeLeft % 60).toString().padStart(2, '0')}`}
               </button>
             </p>
+            {timeLeft > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                OTP valid for {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+              </p>
+            )}
+            {timeLeft <= 0 && (
+              <p className="text-xs text-orange-500 mt-2">
+                OTP may have expired, but you can still try it
+              </p>
+            )}
           </div>
         </form>
       </main>
