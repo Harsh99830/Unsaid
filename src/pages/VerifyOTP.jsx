@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Button from '../components/ui/Button';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../contexts/AuthProvider';
 import { getSupabaseClient } from '../services/supabase';
 
 const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, hasUsername, profileLoading } = useAuth();
+  const { user, hasUsername, profileLoading, verifySession } = useAuth();
   const email = location.state?.email || '';
   const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -108,10 +108,21 @@ const VerifyOTP = () => {
       
       console.log('Session after verification:', session);
       
-      // Update UI to show verification successful
+      // CRITICAL: Verify the session is valid to prevent ghost sessions
+      console.log('🔍 Verifying session after OTP...');
+      const isValidSession = await verifySession(session);
+      
+      if (!isValidSession) {
+        console.error('❌ Session verification failed - ghost session detected');
+        setError('Session verification failed. Please try logging in again.');
+        return;
+      }
+      
+      console.log('✅ Session verified successfully');
+      
+      // Show success message
       setError('');
       
-      // Show success message briefly before redirect
       const successDiv = document.createElement('div');
       successDiv.className = 'bg-green-50 p-4 rounded-2xl flex gap-3 items-start border border-green-100 mb-4';
       successDiv.innerHTML = `
@@ -121,38 +132,16 @@ const VerifyOTP = () => {
         <p class="text-sm leading-relaxed text-green-600">Verification successful! Redirecting...</p>
       `;
       
-      // Insert success message before the form
       const form = document.querySelector('form');
       if (form && form.parentNode) {
         form.parentNode.insertBefore(successDiv, form);
-        
-        // Remove success message after redirect
-        setTimeout(() => {
-          if (successDiv.parentNode) {
-            successDiv.parentNode.removeChild(successDiv);
-          }
-        }, 3000);
       }
       
-      // Check if user has profile to determine redirect
-      try {
-        const { checkUserHasUsername } = await import('../services/userProfile.js');
-        const hasUsername = await checkUserHasUsername(session.user.id);
-        
-        console.log('User has username:', hasUsername);
-        
-        if (hasUsername) {
-          console.log('Redirecting to feed...');
-          navigate('/feed', { replace: true });
-        } else {
-          console.log('Redirecting to username selection...');
-          navigate('/username-selection', { replace: true });
-        }
-      } catch (profileError) {
-        console.error('Error checking user profile:', profileError);
-        // Default to username selection if profile check fails
-        navigate('/username-selection', { replace: true });
-      }
+      // Wait for auth state to update and then redirect
+      setTimeout(() => {
+        console.log('🚀 Redirecting to root for route handling...');
+        window.location.href = '/';
+      }, 2000);
       
     } catch (err) {
       console.error('OTP verification error:', err);

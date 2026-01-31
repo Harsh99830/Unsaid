@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import Tabs from '../components/ui/Tabs';
 import { getAllPosts, getPostsByCategory } from '../services/posts';
 import CloudinaryImage from '../components/CloudinaryImage';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../contexts/AuthProvider';
 
 const samplePosts = [
   {

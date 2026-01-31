@@ -2,7 +2,7 @@ import React, { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
-import { AuthProvider } from './hooks/useAuth.js'
+import { AuthProvider } from './contexts/AuthProvider'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 
 // Import pages

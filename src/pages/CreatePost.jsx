@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { uploadImage } from '../services/cloudinary';
 import { createPost } from '../services/posts';
 import Button from '../components/ui/Button';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../contexts/AuthProvider';
 import { getUserProfile } from '../services/userProfile.js';
 
 const CreatePost = () => {

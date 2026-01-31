@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { School, ArrowRight, Mail, Shield, ExternalLink, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../contexts/AuthProvider';
 
 const Login = () => {
   const navigate = useNavigate();

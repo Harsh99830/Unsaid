@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, RefreshCw, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../contexts/AuthProvider';
 import { generateUsername } from '../hooks/usernameGenerator';
 import { createUserProfileIfNotExists, checkUserHasUsername } from '../services/userProfile';
 

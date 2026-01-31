@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/navigation/BottomNavigation';
 import Tabs from '../components/ui/Tabs';
 import Button from '../components/ui/Button';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../contexts/AuthProvider';
 import { getUserProfile, getUserPosts, calculateUserStats } from '../services/userProfile.js';
 
 const Profile = () => {
