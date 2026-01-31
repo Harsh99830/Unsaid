@@ -267,7 +267,7 @@ function App() {
               {userProfile?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="font-semibold text-[#181311]">{userProfile?.username || user?.email}</p>
+              <p className="font-semibold text-[#181311]">{userProfile?.username || 'Loading...'}</p>
               <p className="text-sm text-gray-500">Welcome back!</p>
             </div>
           </div>

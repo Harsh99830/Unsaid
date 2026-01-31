@@ -13,7 +13,7 @@ const ProtectedRoute = ({
   requireUsername = null, // null = don't check, true = require username, false = require no username
   redirectTo = '/login'
 }) => {
-  const { user, loading, hasUsername, profileLoading } = useAuth();
+  const { user, loading, hasUsername, profileLoading, session, profileState } = useAuth();
   const location = useLocation();
   const currentPath = location.pathname;
 
@@ -43,8 +43,8 @@ const ProtectedRoute = ({
 
   // 3. USERNAME CHECK - Handle username requirements
   if (user && requireUsername !== null) {
-    // If profile is still loading, show loader
-    if (profileLoading || hasUsername === null) {
+    // If profile is still loading, show loader to prevent flash
+    if (profileLoading || !profileState.hasChecked || hasUsername === null) {
       console.log('⏳ ProtectedRoute: Profile loading for path:', currentPath);
       return React.createElement(
         'div',
