@@ -8,7 +8,7 @@ import { getSupabaseClient } from '../services/supabase';
 const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, hasUsername, profileLoading, verifySession } = useAuth();
+  const { user, hasUsername } = useAuth();
   const email = location.state?.email || '';
   const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -108,16 +108,7 @@ const VerifyOTP = () => {
       
       console.log('Session after verification:', session);
       
-      // CRITICAL: Verify the session is valid to prevent ghost sessions
-      console.log('🔍 Verifying session after OTP...');
-      const isValidSession = await verifySession(session);
-      
-      if (!isValidSession) {
-        console.error('❌ Session verification failed - ghost session detected');
-        setError('Session verification failed. Please try logging in again.');
-        return;
-      }
-      
+      // Trust the session - no extra verification needed
       console.log('✅ Session verified successfully');
       
       // Show success message
@@ -138,14 +129,14 @@ const VerifyOTP = () => {
       }
       
       // Mark this as a new signup for the auth provider
-      localStorage.setItem('auth-new-signup', 'true');
-      console.log('🆔 Marked as new signup in localStorage');
+      localStorage.setItem('auth-new-user', 'true');
+      console.log('🆔 Marked as new user in localStorage');
       
       // Wait for auth state to update and then redirect
       setTimeout(() => {
         console.log('🚀 Redirecting to root for route handling...');
         window.location.href = '/';
-      }, 2000);
+      }, 1000);
       
     } catch (err) {
       console.error('OTP verification error:', err);

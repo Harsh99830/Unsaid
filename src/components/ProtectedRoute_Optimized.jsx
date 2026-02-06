@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthProvider';
+import { useAuth } from '../contexts/AuthProvider_Optimized';
 
 /**
  * Optimized ProtectedRoute - INSTANT rendering
@@ -38,17 +38,20 @@ const ProtectedRoute = ({
 
   // 3. USERNAME CHECK - Non-blocking logic
   if (user && requireUsername !== null) {
-    // If profile is still being checked, show minimal loader instead of optimistic routing
+    // If profile is still being checked, allow rendering with optimistic UI
     if (!profileChecked && hasUsername === null) {
-      console.log('⚡ ProtectedRoute: Profile checking, showing minimal loader for:', currentPath);
-      return React.createElement(
-        'div',
-        { className: 'min-h-screen bg-white flex items-center justify-center' },
-        React.createElement(
-          'div',
-          { className: 'w-6 h-6 border-2 border-[#FF5722] border-t-transparent rounded-full animate-spin' }
-        )
-      );
+      console.log('⚡ ProtectedRoute: Profile checking, allowing optimistic render for:', currentPath);
+      
+      // Optimistic routing based on requirement
+      if (requireUsername) {
+        // Optimistically assume user needs username selection
+        console.log('📝 ProtectedRoute: Optimistic - redirecting to username selection');
+        return React.createElement(Navigate, { to: '/username-selection', replace: true });
+      } else {
+        // Optimistically allow access (will be corrected if wrong)
+        console.log('✅ ProtectedRoute: Optimistic - allowing access');
+        return children;
+      }
     }
 
     console.log('🎯 ProtectedRoute: Final route decision for path:', currentPath, 'hasUsername:', hasUsername, 'requireUsername:', requireUsername);

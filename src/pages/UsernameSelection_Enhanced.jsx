@@ -31,7 +31,7 @@ const UsernameSelection = () => {
           .from('users')
           .select('username')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (data?.username) {
           // User already has username, redirect to feed
@@ -64,7 +64,7 @@ const UsernameSelection = () => {
         .from('users')
         .select('id')
         .eq('username', username)
-        .single();
+        .maybeSingle();
 
       return !error && !data;
     } catch (err) {

@@ -36,40 +36,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Get cached username result
-  const getUsernameCache = (userId) => {
-    try {
-      const cacheKey = `username-cache-${userId}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const { hasUsername, timestamp } = JSON.parse(cached);
-        // Cache is valid for 1 hour
-        if (Date.now() - timestamp < 3600000) {
-          console.log('📋 Using cached username result:', hasUsername);
-          return hasUsername;
-        }
-      }
-    } catch (error) {
-      console.error('Error reading username cache:', error);
-    }
-    return null;
-  };
-
-  // Set username cache
-  const setUsernameCache = (userId, hasUsername) => {
-    try {
-      const cacheKey = `username-cache-${userId}`;
-      const cacheData = {
-        hasUsername,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-      console.log('💾 Cached username result:', hasUsername);
-    } catch (error) {
-      console.error('Error setting username cache:', error);
-    }
-  };
-
   const setSessionFlags = (flags) => {
     try {
       if (flags.hasShownLoginToast !== undefined) {
@@ -86,7 +52,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Optimized username check - runs only once per session with localStorage cache
+  // Optimized username check - runs only once per session
   const checkUserProfile = useCallback(async (userId, isNewUser = false) => {
     if (!userId) {
       setHasUsername(false);
@@ -94,15 +60,7 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
-    // Check localStorage cache first for instant results
-    const cachedResult = getUsernameCache(userId);
-    if (cachedResult !== null && !isNewUser) {
-      setHasUsername(cachedResult);
-      setProfileChecked(true);
-      return cachedResult;
-    }
-
-    // Return cached result immediately if already checked in this session
+    // Return cached result immediately if already checked
     if (profileChecked && !isNewUser) {
       return hasUsername;
     }
@@ -113,14 +71,10 @@ export const AuthProvider = ({ children }) => {
       setHasUsername(usernameExists);
       setProfileChecked(true);
       
-      // Cache the result for future refreshes
-      setUsernameCache(userId, usernameExists);
-      
       // Handle new user completion
       if (usernameExists && isNewUser) {
         localStorage.removeItem('auth-new-user');
         setSessionFlags({ hasShownAccountCreated: true });
-        console.log('✅ New user completed profile, cache updated');
       }
       
       return usernameExists;
@@ -128,29 +82,18 @@ export const AuthProvider = ({ children }) => {
       console.error('❌ Profile check failed:', error);
       setHasUsername(false);
       setProfileChecked(true);
-      // Cache the negative result too
-      setUsernameCache(userId, false);
       return false;
     }
   }, [profileChecked, hasUsername]);
 
-  // Optimized toast logic - show only once
+  // Optimized toast logic
   const showAuthToast = useCallback((isNewUser, isNewSession) => {
     const flags = getSessionFlags();
     
-    // Show "Login successful" only once per session for returning users
     if (!isNewUser && isNewSession && !flags.hasShownLoginToast) {
       addToast('Login successful 👋', 'login', 3000);
       setSessionFlags({ hasShownLoginToast: true });
-      console.log('🔔 Showed login toast (once per session)');
-    } else if (!isNewUser && isNewSession && flags.hasShownLoginToast) {
-      console.log('🔕 Login toast skipped (already shown this session)');
-    } else if (isNewUser) {
-      console.log('🔕 Login toast skipped (new user - will show account created toast)');
     }
-    
-    // "Account created" toast is handled in UsernameSelection after successful profile creation
-    // It should only show once ever (persistent flag prevents repeats)
   }, [addToast]);
 
   // SINGLE SOURCE AUTH INITIALIZATION
@@ -208,14 +151,10 @@ export const AuthProvider = ({ children }) => {
           setHasUsername(null);
           setProfileChecked(false);
           
-          // Clear session flags and username cache
+          // Clear session flags
           try {
             sessionStorage.removeItem('auth-login-toast-shown');
             sessionStorage.removeItem('auth-session-id');
-            // Clear username cache for this user
-            if (session?.user?.id) {
-              localStorage.removeItem(`username-cache-${session.user.id}`);
-            }
           } catch (error) {
             console.error('Error clearing session flags:', error);
           }
@@ -269,12 +208,6 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
-      
-      // Clear username cache before clearing user state
-      if (user?.id) {
-        localStorage.removeItem(`username-cache-${user.id}`);
-      }
-      
       setUser(null);
       setSession(null);
       setHasUsername(null);

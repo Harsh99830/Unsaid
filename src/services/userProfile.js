@@ -113,18 +113,13 @@ export function calculateUserStats(posts) {
 }
 
 /**
- * Safely creates a user profile if it doesn't exist
- * This function prevents duplicate inserts and handles race conditions
+ * Safely creates or updates a user profile with proper error handling
+ * This function prevents all "Cannot coerce the result" errors
  * 
- * @param {Object} user - Supabase auth user object
  * @param {string} username - Desired username
  * @returns {Promise<Object>} User profile data
  */
-export async function createUserProfileIfNotExists(user, username) {
-  if (!user || !user.id) {
-    throw new Error('Valid user object is required');
-  }
-
+export async function createUserProfileIfNotExists(username) {
   if (!username || username.trim().length === 0) {
     throw new Error('Username is required');
   }
@@ -134,30 +129,16 @@ export async function createUserProfileIfNotExists(user, username) {
     throw new Error('Supabase client not initialized');
   }
 
-  // Validate that the user actually exists in auth.users
-  try {
-    const { data: authUser, error: authError } = await client.auth.getUser(user.id);
-    if (authError || !authUser.user) {
-      // Try to refresh the session and get current user
-      console.log('⚠️ User not found, attempting to refresh session...');
-      const { data: sessionData, error: sessionError } = await client.auth.getSession();
-      
-      if (sessionError || !sessionData.session?.user) {
-        throw new Error('User not found in authentication system. Please log in again.');
-      }
-      
-      // Use the refreshed user
-      user = sessionData.session.user;
-      console.log('✅ Session refreshed, using user:', user.id);
-    }
-  } catch (error) {
-    throw new Error('Authentication verification failed. Please log in again.');
+  // Get the current authenticated user
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError || !user) {
+    throw new Error('Authentication required. Please log in again.');
   }
 
-  try {
-    console.log('🔍 Checking if profile exists for user:', user.id);
+  console.log('🔍 Processing profile for authenticated user:', user.id);
 
-    // STEP 1: First, try to SELECT existing profile
+  try {
+    // STEP 1: Check if profile exists
     const { data: existingProfile, error: selectError } = await client
       .from('users')
       .select('*')
@@ -165,94 +146,101 @@ export async function createUserProfileIfNotExists(user, username) {
       .maybeSingle();
 
     if (selectError) {
-      console.error('Error checking existing profile:', selectError);
+      console.error('❌ Error checking existing profile:', selectError);
       throw new Error(`Database error: ${selectError.message}`);
     }
 
-    // STEP 2: If profile exists, check if it has a username
+    console.log('📋 Profile check result:', {
+      exists: !!existingProfile,
+      hasUsername: !!existingProfile?.username,
+      isLocked: existingProfile?.username_locked
+    });
+
+    // STEP 2: Handle existing profile
     if (existingProfile) {
-      if (existingProfile.username) {
-        console.log('✅ Profile with username already exists:', existingProfile.username);
+      if (existingProfile.username && existingProfile.username_locked) {
+        console.log('✅ Profile already has locked username:', existingProfile.username);
         return existingProfile;
-      } else {
-        console.log('⚠️ Profile exists but has no username, treating as new profile');
-        // Profile exists but no username - we'll update it
       }
-    }
 
-    // STEP 3: Create or UPDATE profile
-    console.log('📝 Creating/updating profile for user:', user.id, 'with username:', username);
+      if (existingProfile.username && !existingProfile.username_locked) {
+        console.log('⚠️ Profile has username but not locked - this should not happen');
+        return existingProfile;
+      }
 
-    let profileData;
-    let profileError;
-
-    if (existingProfile) {
-      // UPDATE existing profile that has no username
-      console.log('� Updating existing profile with username');
-      const { data, error } = await client
+      // Profile exists but no username - update it
+      console.log('🔄 Updating existing profile with username');
+      
+      // Double-check that username is not locked before updating
+      if (existingProfile.username_locked) {
+        throw new Error('Username is already locked and cannot be changed');
+      }
+      
+      const { error: updateError } = await client
         .from('users')
         .update({
           username: username.trim(),
           username_locked: true
         })
         .eq('id', user.id)
-        .select()
-        .single();
-      
-      profileData = data;
-      profileError = error;
-    } else {
-      // INSERT new profile
-      console.log('➕ Creating new profile');
-      const { data, error } = await client
-        .from('users')
-        .insert([
-          {
-            id: user.id,
-            username: username.trim(),
-            username_locked: true
-          }
-        ])
-        .select()
-        .single();
-      
-      profileData = data;
-      profileError = error;
-    }
+        .eq('username_locked', false); // Only update if not already locked
 
-    if (profileError) {
-      console.error('Error creating/updating profile:', profileError);
-      
-      // Handle specific errors
-      if (profileError.code === '23505') {
-        if (profileError.message.includes('users_pkey')) {
-          // Race condition: Another request created the profile
-          // Fetch it again and return
-          console.log('🔄 Race condition detected, fetching profile again...');
-          const { data: raceProfile } = await client
-            .from('users')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          
-          if (raceProfile) {
-            console.log('✅ Profile found after race condition:', raceProfile.username);
-            return raceProfile;
-          }
-        } else if (profileError.message.includes('username')) {
-          throw new Error('Username already taken. Please choose another.');
-        } else {
-          throw new Error('Profile already exists. Please try refreshing the page.');
-        }
-      } else if (profileError.code === '42501') {
-        throw new Error('Permission denied. Check RLS policies.');
+      if (updateError) {
+        console.error('❌ Update failed:', updateError);
+        throw new Error(`Failed to update username: ${updateError.message}`);
+      }
+
+      // Verify the update
+      const { data: updatedProfile } = await client
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (updatedProfile?.username && updatedProfile?.username_locked) {
+        console.log('✅ Profile updated successfully:', updatedProfile.username);
+        return updatedProfile;
       } else {
-        throw new Error(`Database error: ${profileError.message}`);
+        throw new Error('Update verification failed');
       }
     }
 
-    console.log('🎉 Profile created/updated successfully:', profileData.username);
-    return profileData;
+    // STEP 3: Create new profile
+    console.log('➕ Creating new profile');
+    
+    const { error: insertError } = await client
+      .from('users')
+      .insert({
+        id: user.id,
+        username: username.trim(),
+        username_locked: true
+      });
+
+    if (insertError) {
+      console.error('❌ Insert failed:', insertError);
+      
+      if (insertError.code === '23505') {
+        throw new Error('Profile already exists. Please refresh the page.');
+      } else if (insertError.code === '42501') {
+        throw new Error('Permission denied. Check RLS policies.');
+      } else {
+        throw new Error(`Failed to create profile: ${insertError.message}`);
+      }
+    }
+
+    // Verify the insert
+    const { data: newProfile } = await client
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (newProfile?.username && newProfile?.username_locked) {
+      console.log('✅ Profile created successfully:', newProfile.username);
+      return newProfile;
+    } else {
+      throw new Error('Insert verification failed');
+    }
 
   } catch (error) {
     console.error('❌ Error in createUserProfileIfNotExists:', error);

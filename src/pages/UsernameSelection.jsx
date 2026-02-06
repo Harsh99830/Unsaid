@@ -3,12 +3,14 @@ import { User, RefreshCw, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import { useAuth } from '../contexts/AuthProvider';
+import { useToast } from '../components/ui/Toast';
 import { generateUsername } from '../hooks/usernameGenerator';
 import { createUserProfileIfNotExists, checkUserHasUsername } from '../services/userProfile';
 
 const UsernameSelection = () => {
   const navigate = useNavigate();
   const { user } = useAuth(); // Only get user, no profile functions
+  const { addToast } = useToast();
   const [usernames, setUsernames] = useState([]);
   const [selectedUsername, setSelectedUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -49,38 +51,33 @@ const UsernameSelection = () => {
     try {
       console.log('Creating profile for user:', user.id, 'with username:', selectedUsername);
       
-      // Use the safe profile creation function
-      const profile = await createUserProfileIfNotExists(user, selectedUsername);
+      // Use the safe profile creation function (new signature - only username parameter)
+      const profile = await createUserProfileIfNotExists(selectedUsername);
       
       console.log('✅ Profile creation successful:', profile.username);
       
-      // Show success message and redirect to feed
-      setError('');
+      // Clear new user flag since profile is now complete
+      localStorage.removeItem('auth-new-user');
       
-      // Create success message element
-      const successDiv = document.createElement('div');
-      successDiv.className = 'bg-green-50 p-4 rounded-2xl flex gap-3 items-start border border-green-100 mb-4';
-      successDiv.innerHTML = `
-        <svg class="w-5 h-5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-        </svg>
-        <p class="text-sm leading-relaxed text-green-600">Account created successfully! Welcome to Unsaid! 🎉</p>
-      `;
-      
-      // Insert success message before the form
-      const form = document.querySelector('form');
-      if (form && form.parentNode) {
-        form.parentNode.insertBefore(successDiv, form);
+      // Show Account created toast for new users (only once ever)
+      const hasShownAccountCreated = localStorage.getItem('auth-account-created-shown') === 'true';
+      if (!hasShownAccountCreated) {
+        addToast('Account created successfully 🎉', 'success', 4000);
         
-        // Redirect to feed after showing success message
-        setTimeout(() => {
-          // Force a page reload to refresh auth state
-          window.location.href = '/feed';
-        }, 2000);
-      } else {
-        // Fallback: redirect immediately if form not found
-        window.location.href = '/feed';
+        // Set persistent flag to prevent showing this toast again
+        localStorage.setItem('auth-account-created-shown', 'true');
+        console.log('🔔 Showed account created toast (once ever)');
       }
+      
+      // Update username cache immediately to prevent redirect loops
+      const cacheKey = `username-cache-${user.id}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        hasUsername: true,
+        timestamp: Date.now()
+      }));
+      
+      // Redirect to feed immediately (no delay needed)
+      window.location.href = '/feed';
     } catch (err) {
       console.error('Username selection error:', err);
       setError(err.message || 'Failed to save username. Please try again.');

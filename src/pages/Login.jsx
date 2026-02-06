@@ -19,6 +19,9 @@ const Login = () => {
     setError('');
     
     try {
+      // Set new user flag - this will be cleared after successful profile creation
+      localStorage.setItem('auth-new-user', 'true');
+      
       await signInWithEmail(email);
       navigate('/verify-otp', { state: { email } });
     } catch (err) {
