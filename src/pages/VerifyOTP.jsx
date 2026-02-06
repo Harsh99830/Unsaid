@@ -137,6 +137,10 @@ const VerifyOTP = () => {
         form.parentNode.insertBefore(successDiv, form);
       }
       
+      // Mark this as a new signup for the auth provider
+      localStorage.setItem('auth-new-signup', 'true');
+      console.log('🆔 Marked as new signup in localStorage');
+      
       // Wait for auth state to update and then redirect
       setTimeout(() => {
         console.log('🚀 Redirecting to root for route handling...');

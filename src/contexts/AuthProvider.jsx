@@ -24,12 +24,25 @@ export const AuthProvider = ({ children }) => {
         const parsed = JSON.parse(cached);
         console.log('📋 Loaded profile state from localStorage:', parsed);
         
-        // Only use cached state if user session is still valid
-        // This prevents showing stale cached data
+        // Check if this is a new user without username
+        const isNewUser = localStorage.getItem('auth-new-signup') === 'true';
+        
+        if (isNewUser && parsed.hasUsername === false) {
+          console.log('🆕 New user detected from cache - ensuring no username state');
+          return {
+            hasChecked: true,
+            isLoading: false,
+            hasUsername: false,
+            error: null
+          };
+        }
+        
+        // Always recheck on app load to ensure fresh data
+        // But we can use the cached hasUsername value temporarily
         return {
           hasChecked: false, // Always recheck on app load
           isLoading: false,
-          hasUsername: null,
+          hasUsername: parsed.hasUsername || null, // Use cached value temporarily
           error: null
         };
       }
@@ -54,6 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   // Enhanced profile state setter with selective localStorage persistence
   const setProfileStateWithPersistence = (newState) => {
+    console.log('💾 Setting profile state:', newState);
     setProfileState(newState);
     
     // Only cache to localStorage if we have a definitive result
@@ -82,7 +96,7 @@ export const AuthProvider = ({ children }) => {
 
   const supabase = getSupabaseClient();
 
-  // Check user profile exists with caching and hard timeout
+  // Check user profile exists with caching and smart new user detection
   const checkUserProfile = useCallback(async (userId) => {
     if (!userId) {
       setProfileStateWithPersistence(prev => ({ ...prev, hasChecked: true, hasUsername: false }));
@@ -93,6 +107,20 @@ export const AuthProvider = ({ children }) => {
     if (profileState.hasChecked && !profileState.error && user && user.id === userId) {
       console.log('📋 Using cached profile result:', profileState.hasUsername);
       return profileState.hasUsername;
+    }
+
+    // CRITICAL: Check if this is a new signup BEFORE doing any profile checks
+    const isNewSignup = localStorage.getItem('auth-new-signup') === 'true';
+    if (isNewSignup) {
+      console.log('🆔 New signup flag detected - immediately setting no profile');
+      setProfileStateWithPersistence(prev => ({ 
+        ...prev, 
+        hasChecked: true, 
+        hasUsername: false,
+        isLoading: false 
+      }));
+      localStorage.removeItem('auth-new-signup'); // Clear the flag
+      return false;
     }
 
     // If user changed, reset profile state and recheck
@@ -108,97 +136,126 @@ export const AuthProvider = ({ children }) => {
 
     // Simple and direct approach - no complex timeouts
     try {
-      console.log('🔍 Checking profile for user:', userId);
-      
-      setProfileStateWithPersistence(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      // Set a hard timeout to force resolution
-      const timeoutPromise = new Promise((resolve) => {
-        setTimeout(() => {
-          console.log('⚡ 1 second timeout - forcing instant response');
-          const result = true; // Assume existing user has profile
-          setProfileStateWithPersistence(prev => ({ 
-            ...prev, 
-            hasChecked: true, 
-            hasUsername: result,
-            isLoading: false,
-            error: 'Timeout - assumed profile exists'
-          }));
-          resolve(result);
-        }, 1000);
+      // Check for new signup flag first
+      const isNewSignup = localStorage.getItem('auth-new-signup') === 'true';
+      console.log('🆕 New signup flag in localStorage:', isNewSignup);
+
+      // If new signup flag is set, immediately set state to no username
+      if (isNewSignup) {
+        console.log('🆕 New signup detected, immediately setting no username');
+        setProfileStateWithPersistence(prev => ({ 
+          ...prev, 
+          hasChecked: true, 
+          hasUsername: false,
+          isLoading: false,
+          error: null
+        }));
+        
+        // Don't clear the new signup flag yet - keep it until user sets username
+        console.log('🆕 Keeping new signup flag until username is set');
+        
+        return false;
+      }
+
+      // Create promises with different timeouts
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Profile check timeout')), 5000);
       });
       
-      // Try the database query
-      const queryPromise = (async () => {
-        try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('username, username_locked')
-            .eq('id', userId)
-            .single();
-            
-          if (error) {
-            console.log('📝 Profile check error:', error.code, error.message);
-            if (error.code === 'PGRST116') {
-              console.log('❌ User has no profile');
-              const result = false;
-              setProfileStateWithPersistence(prev => ({ 
-                ...prev, 
-                hasChecked: true, 
-                hasUsername: result,
-                isLoading: false 
-              }));
-              return result;
-            }
-            throw error;
-          }
+      const hardTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('HARD_TIMEOUT')), 10000);
+      });
 
-          console.log('✅ User profile found:', data);
-          console.log('🔍 Profile data - username:', data.username, 'locked:', data.username_locked);
-          const result = !!(data.username && data.username !== null && data.username !== '');
-          console.log('🎯 Has username result:', result);
-          setProfileStateWithPersistence(prev => ({ 
-            ...prev, 
-            hasChecked: true, 
-            hasUsername: result,
-            isLoading: false 
-          }));
-          
-          return result;
-          
-        } catch (queryError) {
-          console.log('❌ Query failed, assuming user has profile');
-          const result = true; // Assume existing user has profile
+      // Database query
+      const profilePromise = supabase
+        .from('users')
+        .select('username, username_locked')
+        .eq('id', userId)
+        .single();
+
+      // Wait for the database query with timeout
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise, hardTimeout]);
+
+      if (error) {
+        console.log('📝 Profile check error:', error.code, error.message);
+        if (error.code === 'PGRST116') {
+          // No rows returned - user doesn't have a profile
+          console.log('❌ User has no profile');
+          const result = false;
           setProfileStateWithPersistence(prev => ({ 
             ...prev, 
             hasChecked: true, 
             hasUsername: result,
             isLoading: false,
-            error: 'Query failed - assumed profile exists'
+            error: null
+          }));
+          return result;
+        } else {
+          // Other error - treat as no profile for safety
+          console.log('❌ Profile check failed, assuming no profile');
+          const result = false;
+          setProfileStateWithPersistence(prev => ({ 
+            ...prev, 
+            hasChecked: true, 
+            hasUsername: result,
+            isLoading: false,
+            error: error.message
           }));
           return result;
         }
-      })();
-      
-      // Race between query and timeout
-      const result = await Promise.race([queryPromise, timeoutPromise]);
-      return result;
-      
+      } else {
+        console.log('✅ User profile found:', data);
+        console.log('🔍 Profile data - username:', data.username, 'locked:', data.username_locked);
+        const result = !!(data.username && data.username !== null && data.username !== '');
+        console.log('🎯 Has username result:', result);
+        
+        // If user now has a username, clear the new signup flag
+        if (result) {
+          const isNewSignup = localStorage.getItem('auth-new-signup') === 'true';
+          if (isNewSignup) {
+            localStorage.removeItem('auth-new-signup');
+            console.log('🗑️ Cleared new signup flag - user now has username');
+          }
+        }
+        
+        setProfileStateWithPersistence(prev => ({ 
+          ...prev, 
+          hasChecked: true, 
+          hasUsername: result,
+          isLoading: false,
+          error: null
+        }));
+        return result;
+      }
+
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.log('📝 Profile check caught error:', error.message);
       
-      // Ultimate fallback
-      const result = true;
-      setProfileStateWithPersistence(prev => ({ 
-        ...prev, 
-        hasChecked: true, 
-        hasUsername: result,
-        error: error.message,
-        isLoading: false 
-      }));
-      return result;
+      // Handle timeout errors
+      if (error.message === 'Profile check timeout' || error.message === 'HARD_TIMEOUT') {
+        console.log('⏰ Profile check timed out, assuming no username');
+        const result = false;
+        setProfileStateWithPersistence(prev => ({ 
+          ...prev, 
+          hasChecked: true, 
+          hasUsername: result,
+          isLoading: false,
+          error: 'Timeout - assuming no username'
+        }));
+        return result;
+      } else {
+        console.log('❌ Profile check failed:', error);
+        setProfileStateWithPersistence(prev => ({ 
+          ...prev, 
+          hasChecked: true, 
+          hasUsername: false, // Assume no username on any error
+          isLoading: false,
+          error: error.message
+        }));
+        return false;
+      }
     }
-  }, [supabase, profileState.hasChecked, profileState.error, user]);
+  }, [profileState.hasChecked, profileState.isLoading, profileState.error]);
 
   // Verify session is valid by making a real API call
   const verifySession = useCallback(async (session) => {
@@ -214,11 +271,22 @@ export const AuthProvider = ({ children }) => {
       
       if (error) {
         console.error('❌ Session verification failed:', error.message);
-        return false;
-      }
-      
-      if (!data.user) {
-        console.error('❌ No user data returned - ghost session');
+        
+        // If it's a 403 error or user doesn't exist, the session is definitely invalid
+        if (error.message.includes('403') || error.message.includes('does not exist')) {
+          console.log('🔑 Session appears to be invalid or expired - user deleted from Supabase');
+          return false;
+        }
+        
+        // For other errors, try a more lenient check
+        console.log('⚠️ Session verification error, trying lenient check');
+        
+        // Check if we have a basic session structure
+        if (session.access_token && session.user?.id) {
+          console.log('✅ Session structure looks valid despite verification error');
+          return true;
+        }
+        
         return false;
       }
       
@@ -226,17 +294,31 @@ export const AuthProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error('❌ Session verification error:', error);
+      
+      // For network errors or other issues, be more lenient
+      if (session.access_token && session.user?.id) {
+        console.log('✅ Session structure looks valid despite error');
+        return true;
+      }
+      
       return false;
     }
   }, [supabase]);
 
   // Auto logout if session becomes invalid
   const handleInvalidSession = async () => {
-    console.log('🔒 Invalid session detected, logging out...');
-    await supabase.auth.signOut();
+    console.log(' Invalid session detected, clearing session immediately...');
+    
+    // Just clear everything and redirect - no complex logic
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+    
+    // Clear all state
     setUser(null);
     setSession(null);
-    clearProfileStateCache();
     setProfileStateWithPersistence({
       hasChecked: false,
       isLoading: false,
@@ -244,7 +326,18 @@ export const AuthProvider = ({ children }) => {
       error: null
     });
     
-    // Redirect to login
+    // Clear localStorage
+    try {
+      localStorage.removeItem('auth-new-signup');
+      localStorage.removeItem('auth-profile-state');
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('supabase.auth.refreshToken');
+    } catch (error) {
+      console.error('Error clearing localStorage:', error);
+    }
+    
+    // Simple redirect
+    console.log('🔄 Redirecting to login...');
     window.location.href = '/login';
   };
 
@@ -304,8 +397,11 @@ export const AuthProvider = ({ children }) => {
         if (!mounted) return;
 
         console.log('🔄 Auth state changed:', event, session?.user?.id);
+        console.log('🔍 New signup flag check:', localStorage.getItem('auth-new-signup'));
+        console.log('🔍 Current profile state:', profileState);
 
         if (event === 'SIGNED_OUT') {
+          console.log('👋 User signed out');
           setUser(null);
           setSession(null);
           clearProfileStateCache();
@@ -318,6 +414,7 @@ export const AuthProvider = ({ children }) => {
         } else if (event === 'TOKEN_REFRESHED') {
           // Token refreshed, verify session is still valid
           if (session?.user) {
+            console.log('🔄 Token refreshed for user:', session.user.id);
             const isValidSession = await verifySession(session);
             if (isValidSession) {
               setUser(session.user);
@@ -332,6 +429,28 @@ export const AuthProvider = ({ children }) => {
           console.log('🔄 Processing auth event:', event, 'for user:', session.user.id);
           console.log('📧 User email from session:', session.user.email);
           console.log('👤 Full user object:', session.user);
+          
+          // CRITICAL: Check for new signup flag BEFORE any session verification
+          const isNewSignup = localStorage.getItem('auth-new-signup') === 'true';
+          console.log('🆔 New signup flag in SIGNED_IN:', isNewSignup);
+          
+          if (isNewSignup) {
+            console.log('🆔 New signup detected in SIGNED_IN - setting no profile immediately');
+            setUser(session.user);
+            setSession(session);
+            setProfileStateWithPersistence({
+              hasChecked: true,
+              isLoading: false,
+              hasUsername: false,
+              error: null
+            });
+            
+            // Don't clear the new signup flag yet - keep it until user sets username
+            console.log('🆕 Keeping new signup flag in auth state listener until username is set');
+            
+            setLoading(false);
+            return;
+          }
           
           // CRITICAL: Verify session is valid to prevent ghost sessions
           const isValidSession = await verifySession(session);
@@ -348,7 +467,7 @@ export const AuthProvider = ({ children }) => {
           await checkUserProfile(session.user.id);
         } else if (session?.user) {
           // This handles other events with valid session
-          console.log('🔄 Processing auth event:', event, 'for user:', session.user.id);
+          console.log('🔄 Processing other auth event:', event, 'for user:', session.user.id);
           
           // CRITICAL: Verify session is valid to prevent ghost sessions
           const isValidSession = await verifySession(session);
@@ -362,15 +481,7 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ Auth session verified, setting user state');
           setUser(session.user);
           setSession(session);
-          
-          // Add timeout fallback for profile check
-          const profileCheckTimeout = setTimeout(() => {
-            console.log('⏰ Profile check timeout, setting loading to false');
-            setLoading(false);
-          }, 4000); // 4 second timeout (reduced from 5)
-          
           await checkUserProfile(session.user.id);
-          clearTimeout(profileCheckTimeout);
         }
 
         setLoading(false);

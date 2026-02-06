@@ -62,6 +62,7 @@ const ProtectedRoute = ({
     }
 
     console.log('🎯 ProtectedRoute: Route decision for path:', currentPath, 'hasUsername:', hasUsername, 'requireUsername:', requireUsername);
+    console.log('🔍 ProtectedRoute: Full auth context - user:', !!user, 'profileLoading:', profileLoading, 'profileState:', profileState);
 
     // Route-specific requirements
     if (requireUsername && !hasUsername) {
