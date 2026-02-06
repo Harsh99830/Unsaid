@@ -68,8 +68,7 @@ const CreatePost = () => {
         category: category.trim() || 'General',
         image_url: uploadedImage?.url || null,
         image_public_id: uploadedImage?.publicId || null,
-        author_name: username,
-        author_id: user?.id || null
+        user_id: user?.id || null // Changed from author_id to match database schema
       };
 
       // Save to Supabase

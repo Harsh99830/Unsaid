@@ -7,12 +7,11 @@ export const Post = {
   category: 'string',
   image_url: 'string',
   image_public_id: 'string',
-  author_name: 'string',
-  author_id: 'string',
+  user_id: 'string', // Changed from author_id to match database schema
   created_at: 'string',
-  likes: 'number',
-  comments: 'number',
-  shares: 'number'
+  likes_count: 'number', // Changed from likes to match database schema
+  comments_count: 'number', // Changed from comments to match database schema
+  shares_count: 'number' // Changed from shares to match database schema
 };
 
 // Create a new post
@@ -28,11 +27,10 @@ export const createPost = async (postData) => {
         category: postData.category,
         image_url: postData.image_url,
         image_public_id: postData.image_public_id,
-        author_name: postData.author_name,
-        author_id: postData.author_id,
-        likes: 0,
-        comments: 0,
-        shares: 0
+        user_id: postData.user_id, // Changed from author_id
+        likes_count: 0, // Changed from likes
+        comments_count: 0, // Changed from comments
+        shares_count: 0 // Changed from shares
       }])
       .select();
 
@@ -57,7 +55,7 @@ export const getAllPosts = async () => {
     
     const { data, error } = await client
       .from('posts')
-      .select('*')
+      .select('*, users!inner(username)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -65,14 +63,23 @@ export const getAllPosts = async () => {
       
       // Check if posts table doesn't exist
       if (error.code === '42P01') {
-        console.error('POSTS TABLE DOES NOT EXIST! Please create the posts table in Supabase.');
+        console.error('POSTS TABLE DOES NOT EXIST! Please create posts table in Supabase.');
         return []; // Return empty array instead of throwing
       }
       
       throw error;
     }
 
-    return data || [];
+    console.log('📊 Posts fetched:', data?.length || 0, 'posts');
+    console.log('📝 Sample post data:', data?.[0]);
+
+    // Transform data to include author_name from joined username
+    const transformedData = data?.map(post => ({
+      ...post,
+      author_name: post.users?.username || 'Anonymous'
+    })) || [];
+
+    return transformedData;
   } catch (error) {
     console.error('Error in getAllPosts:', error);
     return []; // Return empty array on error to prevent app crash
@@ -87,7 +94,7 @@ export const getPostsByCategory = async (category) => {
     
     const { data, error } = await client
       .from('posts')
-      .select('*')
+      .select('*, users!inner(username)')
       .eq('category', category)
       .order('created_at', { ascending: false });
 
@@ -96,7 +103,15 @@ export const getPostsByCategory = async (category) => {
       throw error;
     }
 
-    return data || [];
+    console.log('📊 ' + category + ' posts fetched:', data?.length || 0, 'posts');
+
+    // Transform data to include author_name from joined username
+    const transformedData = data?.map(post => ({
+      ...post,
+      author_name: post.users?.username || 'Anonymous'
+    })) || [];
+
+    return transformedData;
   } catch (error) {
     console.error('Error in getPostsByCategory:', error);
     throw error;
@@ -111,7 +126,7 @@ export const likePost = async (postId) => {
     
     const { data, error } = await client
       .from('posts')
-      .update({ likes: client.raw('likes + 1') })
+      .update({ likes_count: client.raw('likes_count + 1') }) // Changed from likes to likes_count
       .eq('id', postId)
       .select();
 

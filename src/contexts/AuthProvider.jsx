@@ -19,7 +19,8 @@ export const AuthProvider = ({ children }) => {
   const [hasUsername, setHasUsername] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
-  
+  const [authInitialized, setAuthInitialized] = useState(false);
+
   const { addToast, ToastContainer } = useToast();
   const supabase = getSupabaseClient();
 
@@ -29,10 +30,11 @@ export const AuthProvider = ({ children }) => {
       return {
         hasShownLoginToast: sessionStorage.getItem('auth-login-toast-shown') === 'true',
         hasShownAccountCreated: localStorage.getItem('auth-account-created-shown') === 'true',
-        currentSessionId: sessionStorage.getItem('auth-session-id')
+        currentSessionId: sessionStorage.getItem('auth-session-id'),
+        lastAuthCheck: localStorage.getItem('auth-last-check')
       };
     } catch (error) {
-      return { hasShownLoginToast: false, hasShownAccountCreated: false, currentSessionId: null };
+      return { hasShownLoginToast: false, hasShownAccountCreated: false, currentSessionId: null, lastAuthCheck: null };
     }
   };
 
@@ -81,6 +83,9 @@ export const AuthProvider = ({ children }) => {
       if (flags.currentSessionId !== undefined) {
         sessionStorage.setItem('auth-session-id', flags.currentSessionId);
       }
+      if (flags.lastAuthCheck !== undefined) {
+        localStorage.setItem('auth-last-check', flags.lastAuthCheck.toString());
+      }
     } catch (error) {
       console.error('Error setting session flags:', error);
     }
@@ -112,17 +117,17 @@ export const AuthProvider = ({ children }) => {
       const usernameExists = await checkUserHasUsername(userId);
       setHasUsername(usernameExists);
       setProfileChecked(true);
-      
+
       // Cache the result for future refreshes
       setUsernameCache(userId, usernameExists);
-      
+
       // Handle new user completion
       if (usernameExists && isNewUser) {
         localStorage.removeItem('auth-new-user');
         setSessionFlags({ hasShownAccountCreated: true });
         console.log('✅ New user completed profile, cache updated');
       }
-      
+
       return usernameExists;
     } catch (error) {
       console.error('❌ Profile check failed:', error);
@@ -134,10 +139,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, [profileChecked, hasUsername]);
 
-  // Optimized toast logic - show only once
+  // Show appropriate toast messages based on user state
   const showAuthToast = useCallback((isNewUser, isNewSession) => {
     const flags = getSessionFlags();
-    
+
     // Show "Login successful" only once per session for returning users
     if (!isNewUser && isNewSession && !flags.hasShownLoginToast) {
       addToast('Login successful 👋', 'login', 3000);
@@ -148,22 +153,38 @@ export const AuthProvider = ({ children }) => {
     } else if (isNewUser) {
       console.log('🔕 Login toast skipped (new user - will show account created toast)');
     }
-    
+
     // "Account created" toast is handled in UsernameSelection after successful profile creation
     // It should only show once ever (persistent flag prevents repeats)
   }, [addToast]);
 
-  // SINGLE SOURCE AUTH INITIALIZATION
+  // SINGLE SOURCE AUTH INITIALIZATION - Runs only once per app load
   useEffect(() => {
+    // Prevent multiple initializations on tab switches
+    if (authInitialized) {
+      console.log('🚫 Auth already initialized, skipping...');
+      return;
+    }
+
     let mounted = true;
+    const now = Date.now();
+    const flags = getSessionFlags();
+
+    // Skip auth check if checked within last 5 minutes (prevents tab-switch re-checks)
+    if (flags.lastAuthCheck && (now - parseInt(flags.lastAuthCheck)) < 300000) {
+      console.log('⚡ Auth checked recently, using cached state');
+      setAuthReady(true);
+      setAuthInitialized(true);
+      return;
+    }
 
     const initializeAuth = async () => {
       try {
         // SINGLE getSession() call - no verification loops
         const { data: { session }, error } = await supabase.auth.getSession();
-        
+
         if (!mounted) return;
-        
+
         if (error) {
           console.error('Error getting session:', error);
         } else if (session?.user) {
@@ -171,16 +192,21 @@ export const AuthProvider = ({ children }) => {
           console.log('📋 Session found, setting auth state immediately');
           setUser(session.user);
           setSession(session);
-          setSessionFlags({ currentSessionId: session.user.id });
-          
+          setSessionFlags({
+            currentSessionId: session.user.id,
+            lastAuthCheck: now.toString()
+          });
+
           // Check if this is a new user
           const isNewUser = localStorage.getItem('auth-new-user') === 'true';
-          const flags = getSessionFlags();
           const isNewSession = flags.currentSessionId !== session.user.id;
-          
+
           // Start username check in background (non-blocking)
           checkUserProfile(session.user.id, isNewUser);
           showAuthToast(isNewUser, isNewSession);
+        } else {
+          // No session - mark as ready
+          setAuthReady(true);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -188,6 +214,7 @@ export const AuthProvider = ({ children }) => {
         // Mark auth as ready immediately - don't wait for username check
         if (mounted) {
           setAuthReady(true);
+          setAuthInitialized(true);
           console.log('✅ Auth ready - UI can render immediately');
         }
       }
@@ -200,18 +227,20 @@ export const AuthProvider = ({ children }) => {
       async (event, session) => {
         if (!mounted) return;
 
-        console.log('🔄 Auth state changed:', event, session?.user?.id);
+        console.log('🔄 Auth state change:', event);
 
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setSession(null);
           setHasUsername(null);
           setProfileChecked(false);
-          
+          setAuthInitialized(false);
+
           // Clear session flags and username cache
           try {
             sessionStorage.removeItem('auth-login-toast-shown');
             sessionStorage.removeItem('auth-session-id');
+            localStorage.removeItem('auth-last-check');
             // Clear username cache for this user
             if (session?.user?.id) {
               localStorage.removeItem(`username-cache-${session.user.id}`);
@@ -220,26 +249,27 @@ export const AuthProvider = ({ children }) => {
             console.error('Error clearing session flags:', error);
           }
         } else if (event === 'SIGNED_IN' && session?.user) {
-          // Trust the session - set state immediately
-          const isNewUser = localStorage.getItem('auth-new-user') === 'true';
-          
-          setUser(session.user);
-          setSession(session);
-          setSessionFlags({ currentSessionId: session.user.id });
-          
-          // Background username check
-          checkUserProfile(session.user.id, isNewUser);
-          showAuthToast(isNewUser, true);
+          // Only process if different user (prevents duplicate processing)
+          if (!user || user.id !== session.user.id) {
+            console.log('🆕 New user signed in');
+            setUser(session.user);
+            setSession(session);
+            setSessionFlags({
+              currentSessionId: session.user.id,
+              lastAuthCheck: Date.now().toString()
+            });
+
+            const isNewUser = localStorage.getItem('auth-new-user') === 'true';
+            await checkUserProfile(session.user.id, isNewUser);
+            showAuthToast(isNewUser, true);
+          }
         }
-        
-        // Auth is always ready after state change
-        setAuthReady(true);
       }
     );
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 

@@ -108,6 +108,13 @@ function App() {
       const freshman = await getPostsByCategory('Freshman');
       const clubs = await getPostsByCategory('Clubs');
       
+      console.log('📊 Feed fetch results:', {
+        allPosts: allPosts.length,
+        engineering: engineering.length,
+        freshman: freshman.length,
+        clubs: clubs.length
+      });
+      
       setPosts(allPosts);
       setEngineeringPosts(engineering);
       setFreshmanPosts(freshman);
@@ -127,24 +134,24 @@ function App() {
   const formatPostForCard = (post) => {
     const timeAgo = getTimeAgo(post.created_at);
     
-    // Format author name - if it's an email, show just the part before @
-    let displayName = post.author_name;
-    if (post.author_name && post.author_name.includes('@')) {
-      displayName = post.author_name.split('@')[0];
+    // Format author name - handle missing author_name gracefully
+    let displayName = post.author_name || 'Anonymous';
+    if (displayName && displayName.includes('@')) {
+      displayName = displayName.split('@')[0];
     }
     
     return {
       id: post.id,
-      author: displayName || 'Anonymous',
+      author: displayName,
       timestamp: timeAgo,
       department: post.category,
       avatar: 'person_off',
       avatarColor: 'gray',
       content: post.content,
       image: post.image_url,
-      likes: post.likes || 0,
-      comments: post.comments || 0,
-      shares: post.shares || 0,
+      likes: post.likes_count || 0,
+      comments: post.comments_count || 0,
+      shares: post.shares_count || 0,
       isLiked: false
     };
   };
