@@ -6,7 +6,7 @@ import Button from '../components/ui/Button';
 import { Plus, User, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Tabs from '../components/ui/Tabs';
-import { getAllPosts, getPostsByCategory } from '../services/posts';
+import { getAllPosts, getPostsByCategory } from '../features/posts';
 import CloudinaryImage from '../components/CloudinaryImage';
 import { useAuth } from '../contexts/AuthProvider';
 
@@ -108,12 +108,20 @@ function App() {
       const freshman = await getPostsByCategory('Freshman');
       const clubs = await getPostsByCategory('Clubs');
       
+      // Also try to get posts with your actual categories
+      const demo = await getPostsByCategory('demo');
+      const gelo = await getPostsByCategory('gelo');
+      
       console.log('📊 Feed fetch results:', {
         allPosts: allPosts.length,
         engineering: engineering.length,
         freshman: freshman.length,
-        clubs: clubs.length
+        clubs: clubs.length,
+        demo: demo.length,
+        gelo: gelo.length
       });
+      
+      console.log('📝 All posts data:', allPosts);
       
       setPosts(allPosts);
       setEngineeringPosts(engineering);

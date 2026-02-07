@@ -170,12 +170,15 @@ export const AuthProvider = ({ children }) => {
     const now = Date.now();
     const flags = getSessionFlags();
 
-    // Skip auth check if checked within last 5 minutes (prevents tab-switch re-checks)
-    if (flags.lastAuthCheck && (now - parseInt(flags.lastAuthCheck)) < 300000) {
-      console.log('⚡ Auth checked recently, using cached state');
+    // Skip auth check if checked within last 5 minutes AND we already have a user session
+    // This prevents tab-switch re-checks but still allows refresh to restore session
+    if (flags.lastAuthCheck && (now - parseInt(flags.lastAuthCheck)) < 300000 && user) {
+      console.log('⚡ Auth checked recently and user exists, using cached state');
       setAuthReady(true);
       setAuthInitialized(true);
       return;
+    } else if (flags.lastAuthCheck && (now - parseInt(flags.lastAuthCheck)) < 300000 && !user) {
+      console.log('🔄 Page refresh detected, checking session to restore auth...');
     }
 
     const initializeAuth = async () => {
@@ -189,7 +192,8 @@ export const AuthProvider = ({ children }) => {
           console.error('Error getting session:', error);
         } else if (session?.user) {
           // Trust the session - no extra verification
-          console.log('📋 Session found, setting auth state immediately');
+          console.log('📋 Session found on init, setting auth state immediately');
+          console.log('🔍 Session user:', session.user.id);
           setUser(session.user);
           setSession(session);
           setSessionFlags({
@@ -227,7 +231,7 @@ export const AuthProvider = ({ children }) => {
       async (event, session) => {
         if (!mounted) return;
 
-        console.log('🔄 Auth state change:', event);
+        console.log('🔄 Auth state change:', event, 'session exists:', !!session?.user);
 
         if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -249,9 +253,12 @@ export const AuthProvider = ({ children }) => {
             console.error('Error clearing session flags:', error);
           }
         } else if (event === 'SIGNED_IN' && session?.user) {
+          console.log('🔍 SIGNED_IN event received, checking user condition...');
+          console.log('🔍 Current user state:', { currentUser: !!user, currentUserId: user?.id, newUserId: session.user.id });
+          
           // Only process if different user (prevents duplicate processing)
           if (!user || user.id !== session.user.id) {
-            console.log('🆕 New user signed in');
+            console.log('🆕 New user signed in, updating state...');
             setUser(session.user);
             setSession(session);
             setSessionFlags({
@@ -262,6 +269,8 @@ export const AuthProvider = ({ children }) => {
             const isNewUser = localStorage.getItem('auth-new-user') === 'true';
             await checkUserProfile(session.user.id, isNewUser);
             showAuthToast(isNewUser, true);
+          } else {
+            console.log('🔄 Same user already signed in, skipping update');
           }
         }
       }
@@ -314,6 +323,40 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Manual session refresh function
+  const refreshSession = useCallback(async () => {
+    try {
+      console.log('🔄 Manually refreshing session...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Error refreshing session:', error);
+        return null;
+      }
+      
+      if (session?.user) {
+        console.log('✅ Session refreshed, updating auth state...');
+        setUser(session.user);
+        setSession(session);
+        setSessionFlags({
+          currentSessionId: session.user.id,
+          lastAuthCheck: Date.now().toString()
+        });
+        
+        const isNewUser = localStorage.getItem('auth-new-user') === 'true';
+        await checkUserProfile(session.user.id, isNewUser);
+        
+        return session;
+      } else {
+        console.log('❌ No session found during refresh');
+        return null;
+      }
+    } catch (error) {
+      console.error('Session refresh error:', error);
+      return null;
+    }
+  }, [checkUserProfile]);
+
   const value = {
     user,
     session,
@@ -322,7 +365,8 @@ export const AuthProvider = ({ children }) => {
     profileChecked,
     signInWithEmail,
     signOut,
-    checkUserProfile
+    checkUserProfile,
+    refreshSession
   };
 
   return (

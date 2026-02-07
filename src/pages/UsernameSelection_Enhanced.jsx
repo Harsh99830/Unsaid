@@ -5,7 +5,7 @@ import { supabase } from '../services/supabase';
 
 const UsernameSelection = () => {
   const navigate = useNavigate();
-  const { user, verifyAuthUser, handleInvalidSession } = useAuth();
+  const { user } = useAuth();
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,11 +19,7 @@ const UsernameSelection = () => {
         return;
       }
 
-      const userExists = await verifyAuthUser(user.id);
-      if (!userExists) {
-        await handleInvalidSession();
-        return;
-      }
+      // User is authenticated, continue to username check
 
       // Check if user already has username
       try {
@@ -43,7 +39,7 @@ const UsernameSelection = () => {
     };
 
     verifyUser();
-  }, [user, navigate, verifyAuthUser, handleInvalidSession]);
+  }, [user, navigate]);
 
   const validateUsername = (username) => {
     if (!username || username.length < 3) {
@@ -92,12 +88,7 @@ const UsernameSelection = () => {
     setError('');
 
     try {
-      // Double-check auth user still exists
-      const userExists = await verifyAuthUser(user.id);
-      if (!userExists) {
-        await handleInvalidSession();
-        return;
-      }
+      // User is authenticated, proceed with username creation
 
       // Check username availability
       const isAvailable = await checkUsernameAvailability(username);
@@ -122,7 +113,7 @@ const UsernameSelection = () => {
         // Handle foreign key violation specifically
         if (error.code === '23503') {
           setError('Your session has expired. Please log in again.');
-          await handleInvalidSession();
+          navigate('/login');
           return;
         }
         throw error;
@@ -141,7 +132,7 @@ const UsernameSelection = () => {
       
       if (err.code === '23503') {
         setError('Authentication error. Please log in again.');
-        await handleInvalidSession();
+        navigate('/login');
       } else {
         setError(err.message || 'Failed to save username. Please try again.');
       }

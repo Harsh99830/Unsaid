@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { uploadImage } from '../services/cloudinary';
-import { createPost } from '../services/posts';
+import { createPost } from '../features/posts';
 import Button from '../components/ui/Button';
 import { useAuth } from '../contexts/AuthProvider';
 import { getUserProfile } from '../services/userProfile.js';

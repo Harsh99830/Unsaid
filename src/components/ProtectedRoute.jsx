@@ -33,6 +33,7 @@ const ProtectedRoute = ({
   // 2. AUTH CHECK - Immediate redirect if not authenticated
   if (requireAuth && !user) {
     console.log('🔒 ProtectedRoute: No auth, redirecting from', currentPath, 'to', redirectTo);
+    console.log('🔍 Auth state debug:', { user: !!user, authReady, hasUsername, profileChecked });
     return React.createElement(Navigate, { to: redirectTo, replace: true });
   }
 

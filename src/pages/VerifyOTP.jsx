@@ -8,7 +8,7 @@ import { getSupabaseClient } from '../services/supabase';
 const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, hasUsername } = useAuth();
+  const { user, hasUsername, authReady, refreshSession } = useAuth();
   const email = location.state?.email || '';
   const [otp, setOtp] = useState(['', '', '', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -132,11 +132,66 @@ const VerifyOTP = () => {
       localStorage.setItem('auth-new-user', 'true');
       console.log('🆔 Marked as new user in localStorage');
       
-      // Wait for auth state to update and then redirect
+      // Wait for auth state to update naturally, then navigate
+      // This ensures the auth provider has time to process the session
       setTimeout(() => {
-        console.log('🚀 Redirecting to root for route handling...');
-        window.location.href = '/';
-      }, 1000);
+        console.log('🚀 Checking auth state before redirect...');
+        
+        // Double-check that we have a session before redirecting
+        const client = getSupabaseClient();
+        if (client) {
+          client.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+              console.log('✅ Auth state confirmed, checking username...');
+              console.log('🔍 Current auth state:', { user: !!user, hasUsername, authReady });
+              
+              // First, refresh the AuthProvider state to ensure it's updated
+              refreshSession().then((refreshedSession) => {
+                if (refreshedSession) {
+                  console.log('✅ AuthProvider state refreshed, checking username...');
+                  
+                  // Now check username directly from database
+                  client.from('users')
+                    .select('username')
+                    .eq('id', refreshedSession.user.id)
+                    .maybeSingle()
+                    .then(({ data, error }) => {
+                      if (error) {
+                        console.error('Error checking username:', error);
+                        // Default to username selection if there's an error
+                        navigate('/username-selection', { replace: true });
+                        return;
+                      }
+                      
+                      const hasUsername = !!data?.username;
+                      console.log('🔍 Direct username check result:', hasUsername);
+                      
+                      if (hasUsername) {
+                        console.log('✅ User has username, navigating to feed...');
+                        navigate('/', { replace: true });
+                      } else {
+                        console.log('📝 User needs username, navigating to username selection...');
+                        navigate('/username-selection', { replace: true });
+                      }
+                    });
+                } else {
+                  console.log('❌ Failed to refresh session, defaulting to username selection...');
+                  navigate('/username-selection', { replace: true });
+                }
+              });
+            } else {
+              console.log('❌ No session found, staying on verify page');
+            }
+          }).catch(err => {
+            console.error('Session check error:', err);
+            // Still try to navigate
+            navigate('/', { replace: true });
+          });
+        } else {
+          console.log('❌ No client, forcing navigation');
+          navigate('/', { replace: true });
+        }
+      }, 2000); // 2 second delay to ensure auth state updates
       
     } catch (err) {
       console.error('OTP verification error:', err);

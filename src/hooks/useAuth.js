@@ -99,10 +99,14 @@ export function AuthProvider({ children }) {
           setLoading(false);
           
           // Reset profile state when user changes
-          if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          if (event === 'SIGNED_OUT') {
+            console.log('🔐 User signed out, resetting profile state');
             profileCheckRef.current = false;
             setHasUsername(null);
             setProfileLoading(false);
+          } else if (event === 'SIGNED_IN') {
+            console.log('🔐 User signed in, profile will be checked');
+            // Don't reset profile state on sign in - let useEffect handle it
           }
         }
       );
@@ -126,20 +130,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (user && !profileCheckRef.current) {
       checkProfileOnce(user.id);
-      
-      // Add immediate timeout to prevent infinite loading (reduced to 3 seconds)
-      const timeout = setTimeout(() => {
-        if (profileLoading) {
-          console.log('⚠️ Profile check timeout, forcing loading to false');
-          setProfileLoading(false);
-          setHasUsername(false); // Assume no username on timeout
-          profileCheckRef.current = false; // Reset to allow retry
-        }
-      }, 3000); // 3 second timeout
-
-      return () => clearTimeout(timeout);
     }
-  }, [user, profileLoading]);
+  }, [user]);
 
   // Derived state
   const isLoggedIn = !!user;
