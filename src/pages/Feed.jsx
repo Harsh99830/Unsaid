@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Header from '../components/navigation/Header';
 import PostCard from '../components/feed/PostCard';
 import BottomNavigation from '../components/navigation/BottomNavigation';
@@ -9,6 +9,38 @@ import Tabs from '../components/ui/Tabs';
 import { getAllPosts, getPostsByCategory } from '../features/posts';
 import CloudinaryImage from '../components/CloudinaryImage';
 import { useAuth } from '../contexts/AuthProvider';
+
+// In-memory cache for posts (Instagram-like)
+const postsCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Cache utilities
+const getCacheKey = (category, cursor = null) => `${category}-${cursor || 'first'}`;
+const isCacheValid = (timestamp) => Date.now() - timestamp < CACHE_TTL;
+
+const getCachedData = (category, cursor) => {
+  const key = getCacheKey(category, cursor);
+  const cached = postsCache.get(key);
+  if (cached && isCacheValid(cached.timestamp)) {
+    console.log('📋 Using cached data for:', key);
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedData = (category, cursor, data) => {
+  const key = getCacheKey(category, cursor);
+  postsCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+  console.log('💾 Cached data for:', key);
+};
+
+const clearPostsCache = () => {
+  postsCache.clear();
+  console.log('🗑️ Posts cache cleared');
+};
 
 const samplePosts = [
   {
@@ -56,16 +88,48 @@ const samplePosts = [
 
 function App() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, authReady } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [engineeringPosts, setEngineeringPosts] = useState([]);
   const [freshmanPosts, setFreshmanPosts] = useState([]);
   const [clubsPosts, setClubsPosts] = useState([]);
+  const [categoryPosts, setCategoryPosts] = useState({});
   const [userProfile, setUserProfile] = useState(null);
+  
+  // Infinite scroll refs
+  const observerRef = useRef(null);
+  const loadingRef = useRef(false);
 
-  // NO REDIRECT LOGIC - ProtectedRoute handles all routing
+  // Instagram-like infinite scroll
+  const setupInfiniteScroll = useCallback(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !loadingRef.current && !loadingMore) {
+          console.log('📜 Loading more posts...');
+          loadMorePosts();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore]);
+
+  // Setup infinite scroll when posts change
+  useEffect(() => {
+    if (posts.length > 0 || categoryPosts[activeTab]?.length > 0) {
+      setupInfiniteScroll();
+    }
+  }, [posts, categoryPosts, activeTab, setupInfiniteScroll]);
 
   // Fetch user profile data
   useEffect(() => {
@@ -84,58 +148,102 @@ function App() {
     fetchUserProfile();
   }, [user]);
 
-  // Fetch posts from Supabase
-  useEffect(() => {
-    if (user) {
-      fetchPosts();
-    }
-  }, [user]);
-
-  const handleSignOut = async () => {
+  // Optimized fetch posts with caching and pagination
+  const fetchPosts = useCallback(async (category = 'all', cursor = null, append = false) => {
     try {
-      await signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
+      // Check cache first (Instagram-like instant loading)
+      const cachedData = getCachedData(category, cursor);
+      if (cachedData && !append) {
+        console.log('⚡ Serving from cache:', category);
+        if (category === 'all') {
+          setPosts(cachedData);
+        } else {
+          setCategoryPosts(prev => ({ ...prev, [category]: cachedData }));
+        }
+        return;
+      }
 
-  const fetchPosts = async () => {
-    try {
-      setLoading(true);
-      const allPosts = await getAllPosts();
-      const engineering = await getPostsByCategory('Engineering');
-      const freshman = await getPostsByCategory('Freshman');
-      const clubs = await getPostsByCategory('Clubs');
+      // Fetch from network only if cache miss
+      console.log('🌐 Fetching from network:', category);
       
-      // Also try to get posts with your actual categories
-      const demo = await getPostsByCategory('demo');
-      const gelo = await getPostsByCategory('gelo');
-      
-      console.log('📊 Feed fetch results:', {
-        allPosts: allPosts.length,
-        engineering: engineering.length,
-        freshman: freshman.length,
-        clubs: clubs.length,
-        demo: demo.length,
-        gelo: gelo.length
-      });
-      
-      console.log('📝 All posts data:', allPosts);
-      
-      setPosts(allPosts);
-      setEngineeringPosts(engineering);
-      setFreshmanPosts(freshman);
-      setClubsPosts(clubs);
+      let fetchedPosts;
+      if (category === 'all') {
+        fetchedPosts = await getAllPosts();
+      } else {
+        fetchedPosts = await getPostsByCategory(category);
+      }
+
+      // Apply cursor-based pagination
+      const startIndex = cursor ? fetchedPosts.findIndex(post => post.created_at === cursor) : 0;
+      const paginatedPosts = cursor ? fetchedPosts.slice(startIndex + 1) : fetchedPosts;
+
+      // Cache the results
+      setCachedData(category, cursor, paginatedPosts);
+
+      // Update state
+      if (append) {
+        if (category === 'all') {
+          setPosts(prev => [...prev, ...paginatedPosts]);
+        } else {
+          setCategoryPosts(prev => ({ 
+            ...prev, 
+            [category]: [...(prev[category] || []), ...paginatedPosts] 
+          }));
+        }
+      } else {
+        if (category === 'all') {
+          setPosts(paginatedPosts);
+        } else {
+          setCategoryPosts(prev => ({ ...prev, [category]: paginatedPosts }));
+        }
+      }
+
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleTabChange = (tab) => {
+  // Initial fetch with caching
+  useEffect(() => {
+    if (user && authReady) {
+      console.log('🚀 Initial feed fetch');
+      fetchPosts('all', null, false);
+      fetchPosts('Engineering', null, false);
+      fetchPosts('Freshman', null, false);
+      fetchPosts('Clubs', null, false);
+    }
+  }, [user, authReady, fetchPosts]);
+
+  // Optimized tab change - uses cache, no unnecessary refetch
+  const handleTabChange = useCallback((tab) => {
+    if (activeTab === tab) return; // No change needed
+    
+    console.log('🔄 Tab change:', activeTab, '→', tab);
     setActiveTab(tab);
+    
+    // Check if data is already cached (Instagram-like instant switch)
+    const cachedData = getCachedData(tab === 'all' ? 'all' : tab, null);
+    if (cachedData) {
+      console.log('⚡ Instant tab switch from cache:', tab);
+      return; // Data already loaded, no fetch needed
+    }
+    
+    // Only fetch if not cached
+    console.log('🌐 Tab switch needs fetch:', tab);
+    fetchPosts(tab === 'all' ? 'all' : tab, null, false);
+  }, [activeTab, fetchPosts]);
+
+  // Handle sign out
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      clearPostsCache(); // Clear cache on sign out
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   // Format post data for PostCard component
@@ -179,10 +287,10 @@ function App() {
 
   const tabs = [
     { 
-      label: 'Feed', 
+      label: 'Home', 
       content: (
         <div className="mt-4">
-          {loading ? (
+          {loading && posts.length === 0 ? (
             <div className="flex justify-center py-8">
               <div className="text-gray-500">Loading posts...</div>
             </div>
@@ -195,6 +303,19 @@ function App() {
               {posts.map(post => (
                 <PostCard key={post.id} post={formatPostForCard(post)} />
               ))}
+              {/* Infinite scroll trigger */}
+              {hasMore && (
+                <div 
+                  ref={observerRef} 
+                  className="flex justify-center py-4"
+                >
+                  {loadingMore ? (
+                    <div className="text-gray-500">Loading more...</div>
+                  ) : (
+                    <div className="text-gray-400">Scroll for more</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

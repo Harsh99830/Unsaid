@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { User, RefreshCw, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Button from '../components/ui/Button';
-import { useAuth } from '../contexts/AuthProvider';
-import { useToast } from '../components/ui/Toast';
-import { generateUsername } from '../hooks/usernameGenerator';
-import { createUserProfileIfNotExists, checkUserHasUsername } from '../services/userProfile';
+import Button from "../components/ui/Button";
+import { useAuth } from "../contexts/AuthProvider";
+import { generateUsername } from "../hooks/usernameGenerator";
+import { createUserProfileIfNotExists, checkUserHasUsername } from "../services/userProfile";
 
 const UsernameSelection = () => {
   const navigate = useNavigate();
   const { user } = useAuth(); // Only get user, no profile functions
-  const { addToast } = useToast();
   const [usernames, setUsernames] = useState([]);
   const [selectedUsername, setSelectedUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -62,11 +60,9 @@ const UsernameSelection = () => {
       // Show Account created toast for new users (only once ever)
       const hasShownAccountCreated = localStorage.getItem('auth-account-created-shown') === 'true';
       if (!hasShownAccountCreated) {
-        addToast('Account created successfully 🎉', 'success', 4000);
-        
+        console.log('🔔 Account created successfully (once ever)');
         // Set persistent flag to prevent showing this toast again
         localStorage.setItem('auth-account-created-shown', 'true');
-        console.log('🔔 Showed account created toast (once ever)');
       }
       
       // Update username cache immediately to prevent redirect loops

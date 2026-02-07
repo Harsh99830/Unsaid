@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getSupabaseClient } from '../services/supabase';
 import { checkUserHasUsername } from '../services/userProfile';
-import { useToast } from '../components/ui/Toast';
 
 const AuthContext = createContext();
 
@@ -21,20 +20,17 @@ export const AuthProvider = ({ children }) => {
   const [profileChecked, setProfileChecked] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
 
-  const { addToast, ToastContainer } = useToast();
   const supabase = getSupabaseClient();
 
   // Session persistence flags
   const getSessionFlags = () => {
     try {
       return {
-        hasShownLoginToast: sessionStorage.getItem('auth-login-toast-shown') === 'true',
-        hasShownAccountCreated: localStorage.getItem('auth-account-created-shown') === 'true',
         currentSessionId: sessionStorage.getItem('auth-session-id'),
         lastAuthCheck: localStorage.getItem('auth-last-check')
       };
     } catch (error) {
-      return { hasShownLoginToast: false, hasShownAccountCreated: false, currentSessionId: null, lastAuthCheck: null };
+      return { currentSessionId: null, lastAuthCheck: null };
     }
   };
 
@@ -52,7 +48,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } catch (error) {
-      console.error('Error reading username cache:', error);
+      console.error('Error getting username cache:', error);
     }
     return null;
   };
@@ -139,25 +135,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, [profileChecked, hasUsername]);
 
-  // Show appropriate toast messages based on user state
-  const showAuthToast = useCallback((isNewUser, isNewSession) => {
-    const flags = getSessionFlags();
-
-    // Show "Login successful" only once per session for returning users
-    if (!isNewUser && isNewSession && !flags.hasShownLoginToast) {
-      addToast('Login successful 👋', 'login', 3000);
-      setSessionFlags({ hasShownLoginToast: true });
-      console.log('🔔 Showed login toast (once per session)');
-    } else if (!isNewUser && isNewSession && flags.hasShownLoginToast) {
-      console.log('🔕 Login toast skipped (already shown this session)');
-    } else if (isNewUser) {
-      console.log('🔕 Login toast skipped (new user - will show account created toast)');
-    }
-
-    // "Account created" toast is handled in UsernameSelection after successful profile creation
-    // It should only show once ever (persistent flag prevents repeats)
-  }, [addToast]);
-
   // SINGLE SOURCE AUTH INITIALIZATION - Runs only once per app load
   useEffect(() => {
     // Prevent multiple initializations on tab switches
@@ -207,7 +184,6 @@ export const AuthProvider = ({ children }) => {
 
           // Start username check in background (non-blocking)
           checkUserProfile(session.user.id, isNewUser);
-          showAuthToast(isNewUser, isNewSession);
         } else {
           // No session - mark as ready
           setAuthReady(true);
@@ -240,15 +216,10 @@ export const AuthProvider = ({ children }) => {
           setProfileChecked(false);
           setAuthInitialized(false);
 
-          // Clear session flags and username cache
+          // Clear session flags
           try {
-            sessionStorage.removeItem('auth-login-toast-shown');
             sessionStorage.removeItem('auth-session-id');
             localStorage.removeItem('auth-last-check');
-            // Clear username cache for this user
-            if (session?.user?.id) {
-              localStorage.removeItem(`username-cache-${session.user.id}`);
-            }
           } catch (error) {
             console.error('Error clearing session flags:', error);
           }
@@ -372,7 +343,6 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={value}>
       {children}
-      <ToastContainer />
     </AuthContext.Provider>
   );
 };
