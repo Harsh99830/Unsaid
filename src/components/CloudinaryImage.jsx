@@ -1,22 +1,18 @@
 import React from 'react';
-import { AdvancedImage } from '@cloudinary/react';
-import { createOptimizedImage } from '../services/cloudinary';
 
 const CloudinaryImage = ({ 
-  publicId = 'cld-sample-5', 
   width = 500, 
   height = 500, 
   className = '', 
-  alt = 'Cloudinary image' 
+  alt = 'Placeholder image' 
 }) => {
-  const img = createOptimizedImage(publicId, width, height);
-  
   return (
-    <AdvancedImage 
-      cldImg={img} 
-      className={className}
-      alt={alt}
-    />
+    <div 
+      className={`bg-gray-200 flex items-center justify-center text-gray-500 text-sm ${className}`}
+      style={{ width, height }}
+    >
+      {alt}
+    </div>
   );
 };
 

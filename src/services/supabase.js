@@ -19,8 +19,8 @@ export const getSupabaseClient = () => {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
-      flowType: 'pkce', // Prevents ghost sessions
+      detectSessionInUrl: true,
+      flowType: 'pkce',
       debug: process.env.NODE_ENV === 'development'
     },
     global: {
