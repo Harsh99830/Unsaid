@@ -49,7 +49,10 @@ function Feed() {
         <div className="max-w-md mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-[#181311]">Unsaid</h1>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#FF5722] rounded-full"></div>
+            <div 
+              onClick={() => navigate('/profile')}
+              className="w-8 h-8 bg-[#FF5722] rounded-full cursor-pointer hover:bg-[#FF5722]/80 transition-colors"
+            ></div>
             <button
               onClick={handleSignOut}
               className="p-2 text-gray-500 hover:text-[#FF5722] transition-colors"

@@ -9,6 +9,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login.jsx'
 import Feed from './pages/Feed.jsx'
 import UsernameSelection from './pages/UsernameSelection.jsx'
+import Profile from './pages/Profile.jsx'
+import AuthCallback from './pages/AuthCallback.jsx'
 
 /**
  * AppRoutes - Simple router setup
@@ -48,6 +50,22 @@ const AppRoutes = () => {
       )
     }),
     
+    // Profile route - accessible only when authenticated
+    React.createElement(Route, {
+      path: '/profile',
+      element: React.createElement(
+        ProtectedRoute,
+        { requireAuth: true },
+        React.createElement(Profile)
+      )
+    }),
+    
+    // Auth callback route - handles OAuth redirect from Supabase
+    React.createElement(Route, {
+      path: '/auth/callback',
+      element: React.createElement(AuthCallback)
+    }),
+
     // Default route - redirect based on auth state
     React.createElement(Route, {
       path: '/',
