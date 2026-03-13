@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 // Import pages
 import Login from './pages/Login.jsx'
 import Feed from './pages/Feed.jsx'
+import UsernameSelection from './pages/UsernameSelection.jsx'
 
 /**
  * AppRoutes - Simple router setup
@@ -24,6 +25,16 @@ const AppRoutes = () => {
         ProtectedRoute,
         { requireAuth: false },
         React.createElement(Login)
+      )
+    }),
+    
+    // Username selection route - accessible only when authenticated
+    React.createElement(Route, {
+      path: '/username-selection',
+      element: React.createElement(
+        ProtectedRoute,
+        { requireAuth: true },
+        React.createElement(UsernameSelection)
       )
     }),
     

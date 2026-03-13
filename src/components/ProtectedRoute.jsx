@@ -3,10 +3,10 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthProvider';
 
 const ProtectedRoute = ({ children, requireAuth = true }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, hasUsername, checkingUsername } = useAuth();
 
-  // Show loading while checking auth state
-  if (loading) {
+  // Show loading while checking auth state or username
+  if (loading || checkingUsername) {
     return (
       <div className="min-h-screen bg-white text-[#181311] antialiased flex items-center justify-center">
         <div className="text-center">
@@ -22,8 +22,20 @@ const ProtectedRoute = ({ children, requireAuth = true }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // If auth is NOT required (login page) and user IS logged in, redirect to feed
+  // If user is logged in but doesn't have username, redirect to username selection
+  // Only redirect if we're certain they don't have a username (not during checking)
+  if (requireAuth && user && !hasUsername && window.location.pathname !== '/username-selection') {
+    return <Navigate to="/username-selection" replace />;
+  }
+
+  // If auth is NOT required (login page) and user IS logged in, redirect appropriately
   if (!requireAuth && user) {
+    // If user has username, go to feed, otherwise go to username selection
+    return <Navigate to={hasUsername ? "/feed" : "/username-selection"} replace />;
+  }
+
+  // If user is logged in but trying to access username selection page and already has username, redirect to feed
+  if (requireAuth && user && hasUsername && window.location.pathname === '/username-selection') {
     return <Navigate to="/feed" replace />;
   }
 

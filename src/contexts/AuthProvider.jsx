@@ -16,6 +16,9 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasUsername, setHasUsername] = useState(false);
+  const [username, setUsername] = useState(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
 
   const supabase = getSupabaseClient();
 
@@ -43,6 +46,9 @@ export const AuthProvider = ({ children }) => {
           console.log('Session found:', session.user.id);
           setUser(session.user);
           setSession(session);
+          
+          // Check if user has username
+          await checkUserUsername(session.user.id);
         }
 
         setAuthReady(true);
@@ -68,9 +74,11 @@ export const AuthProvider = ({ children }) => {
         if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user);
           setSession(session);
+          await checkUserUsername(session.user.id);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setSession(null);
+          setHasUsername(false);
         }
 
         setAuthReady(true);
@@ -83,6 +91,85 @@ export const AuthProvider = ({ children }) => {
       subscription?.unsubscribe();
     };
   }, []);
+
+  // Check if user has username
+  const checkUserUsername = async (userId) => {
+    if (!supabase) {
+      console.log('Supabase not available, assuming no username');
+      setHasUsername(false);
+      setUsername(null);
+      return;
+    }
+    
+    setCheckingUsername(true);
+    
+    try {
+      // Add short timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Username check timeout')), 2000);
+      });
+
+      const queryPromise = supabase
+        .from('users')
+        .select('username')
+        .eq('id', userId)
+        .single();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking username:', error);
+        setHasUsername(false);
+        setUsername(null);
+        return;
+      }
+
+      if (data?.username) {
+        setHasUsername(true);
+        setUsername(data.username);
+        console.log('User has username:', data.username);
+      } else {
+        setHasUsername(false);
+        setUsername(null);
+        console.log('User does not have username');
+      }
+    } catch (error) {
+      console.error('Username check failed:', error.message);
+      // On timeout, assume no username to prevent infinite loading
+      setHasUsername(false);
+      setUsername(null);
+    } finally {
+      setCheckingUsername(false);
+    }
+  };
+
+  // Save user username
+  const saveUsername = async (userId, selectedUsername) => {
+    if (!supabase) return { success: false, error: 'Supabase not initialized' };
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .upsert({
+          id: userId,
+          username: selectedUsername,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update the hasUsername state
+      setHasUsername(true);
+      setUsername(selectedUsername);
+      
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error saving username:', error);
+      return { success: false, error: error.message };
+    }
+  };
 
   // Sign in with Google OAuth
   const signInWithGoogle = async () => {
@@ -154,9 +241,13 @@ export const AuthProvider = ({ children }) => {
     session,
     authReady,
     loading,
+    hasUsername,
+    username,
+    checkingUsername,
     signInWithGoogle,
     signInWithEmail,
     signOut,
+    saveUsername,
   };
 
   return (

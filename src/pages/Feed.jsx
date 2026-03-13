@@ -30,7 +30,7 @@ const samplePosts = [
 
 function Feed() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, username } = useAuth();
   const [posts] = useState(samplePosts);
 
   const handleSignOut = async () => {
@@ -66,10 +66,10 @@ function Feed() {
         <div className="bg-white p-4 m-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#FF5722] rounded-full flex items-center justify-center text-white font-semibold">
-              U
+              {username ? username.charAt(0).toUpperCase() : 'U'}
             </div>
             <div>
-              <p className="font-semibold text-[#181311]">User</p>
+              <p className="font-semibold text-[#181311]">Hello {username || 'User'}</p>
               <p className="text-sm text-gray-500">Welcome back!</p>
             </div>
           </div>

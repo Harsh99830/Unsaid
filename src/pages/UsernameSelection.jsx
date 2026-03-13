@@ -1,181 +1,109 @@
 import React, { useState, useEffect } from 'react';
-import { User, RefreshCw, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Button from "../components/ui/Button";
-import { useAuth } from "../contexts/AuthProvider";
-import { generateUsername } from "../hooks/usernameGenerator";
-import { createUserProfileIfNotExists, checkUserHasUsername } from "../services/userProfile";
+import { useAuth } from '../contexts/AuthProvider';
+
+// Random username generator
+const generateRandomUsername = () => {
+  const adjectives = ['Silent', 'Hidden', 'Anonymous', 'Secret', 'Mystery', 'Quiet', 'Shadow', 'Whisper', 'Ghost', 'Phantom'];
+  const nouns = ['Thinker', 'Writer', 'Observer', 'Speaker', 'Dreamer', 'Creator', 'Explorer', 'Wanderer', 'Seeker', 'Traveler'];
+  const numbers = Math.floor(Math.random() * 999) + 1;
+  
+  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  
+  return `${adjective}${noun}${numbers}`;
+};
 
 const UsernameSelection = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth(); // Only get user, no profile functions
   const [usernames, setUsernames] = useState([]);
   const [selectedUsername, setSelectedUsername] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const { user, saveUsername } = useAuth();
 
   useEffect(() => {
-    generateUsernames();
+    // Generate 3 random usernames
+    const generatedUsernames = [
+      generateRandomUsername(),
+      generateRandomUsername(),
+      generateRandomUsername()
+    ];
+    setUsernames(generatedUsernames);
   }, []);
 
-  const generateUsernames = async () => {
-    setIsGenerating(true);
-    try {
-      const newUsernames = [];
-      for (let i = 0; i < 3; i++) {
-        newUsernames.push(generateUsername());
-      }
-      setUsernames(newUsernames);
-    } catch (err) {
-      setError('Failed to generate usernames. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleUsernameSelect = (username) => {
+  const handleUsernameSelect = async (username) => {
+    if (isSaving) return;
+    
     setSelectedUsername(username);
-    setError('');
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedUsername.trim() || !user) return;
-
-    setIsLoading(true);
+    setIsSaving(true);
     setError('');
 
     try {
-      console.log('Creating profile for user:', user.id, 'with username:', selectedUsername);
+      // Save username using AuthProvider method
+      const result = await saveUsername(user.id, username);
       
-      // Use the safe profile creation function (new signature - only username parameter)
-      const profile = await createUserProfileIfNotExists(selectedUsername);
-      
-      console.log('✅ Profile creation successful:', profile.username);
-      
-      // Clear new user flag since profile is now complete
-      localStorage.removeItem('auth-new-user');
-      
-      // Show Account created toast for new users (only once ever)
-      const hasShownAccountCreated = localStorage.getItem('auth-account-created-shown') === 'true';
-      if (!hasShownAccountCreated) {
-        console.log('🔔 Account created successfully (once ever)');
-        // Set persistent flag to prevent showing this toast again
-        localStorage.setItem('auth-account-created-shown', 'true');
+      if (result.success) {
+        // Redirect to feed after successful save
+        navigate('/feed');
+      } else {
+        setError(result.error || 'Failed to save username');
       }
-      
-      // Update username cache immediately to prevent redirect loops
-      const cacheKey = `username-cache-${user.id}`;
-      localStorage.setItem(cacheKey, JSON.stringify({
-        hasUsername: true,
-        timestamp: Date.now()
-      }));
-      
-      // Redirect to feed immediately (no delay needed)
-      window.location.href = '/feed';
-    } catch (err) {
-      console.error('Username selection error:', err);
-      setError(err.message || 'Failed to save username. Please try again.');
+    } catch (error) {
+      console.error('Error saving username:', error);
+      setError('Failed to save username. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
-  };
-
-  const handleRefresh = () => {
-    setSelectedUsername('');
-    generateUsernames();
   };
 
   return (
-    <div className="bg-white text-[#181311] antialiased min-h-screen flex flex-col">
-      <main className="flex-grow flex flex-col items-center justify-center px-8 w-full max-w-md mx-auto relative">
-        {/* Logo and Title */}
-        <div className="mb-12 flex flex-col items-center gap-3">
-          <div className="bg-[#FF5722]/10 p-4 rounded-2xl mb-2">
-            <User size={40} className="text-[#FF5722]" />
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#181311]">Choose Your Identity</h1>
-          <p className="text-gray-500 font-medium">Select an anonymous username</p>
+    <div className="min-h-screen bg-white text-[#181311] antialiased flex flex-col">
+      <main className="flex-grow flex flex-col items-center justify-center px-8 w-full max-w-md mx-auto">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#181311] mb-8">
+          Choose Your Username
+        </h1>
+        
+        <div className="w-full space-y-4">
+          {usernames.map((username, index) => (
+            <div
+              key={index}
+              onClick={() => !isSaving && handleUsernameSelect(username)}
+              className={`p-6 rounded-2xl border-2 transition-all cursor-pointer ${
+                selectedUsername === username
+                  ? 'border-[#FF5722] bg-[#FF5722]/5'
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <p className="font-semibold text-[#181311] text-lg">{username}</p>
+              {selectedUsername === username && (
+                <p className="text-sm text-[#FF5722] mt-1">Selected</p>
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Username Selection */}
-        <div className="w-full space-y-6">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-700">
-                Available Usernames
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isGenerating}
-                className="text-gray-500 hover:text-[#FF5722]"
-              >
-                <RefreshCw size={16} className={isGenerating ? 'animate-spin' : ''} />
-                Refresh
-              </Button>
-            </div>
-
-            <div className="grid gap-3">
-              {usernames.map((username, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleUsernameSelect(username)}
-                  disabled={isGenerating}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-200 text-left ${
-                    selectedUsername === username
-                      ? 'border-[#FF5722] bg-[#FF5722]/5 text-[#FF5722] font-semibold'
-                      : 'border-gray-200 bg-gray-50/50 hover:border-gray-300 hover:bg-gray-100/50'
-                  } ${isGenerating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        selectedUsername === username ? 'bg-[#FF5722] text-white' : 'bg-gray-200 text-gray-500'
-                      }`}>
-                        {selectedUsername === username && <Sparkles size={16} />}
-                      </div>
-                      <span className="font-medium">{username}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+        {error && (
+          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 mt-6">
+            <p className="text-sm text-red-600">{error}</p>
           </div>
+        )}
 
-          <Button
-            variant="primary"
-            size="lg"
-            loading={isLoading}
-            disabled={!selectedUsername || isGenerating}
-            onClick={handleSubmit}
-            className="w-full"
-          >
-            Continue with {selectedUsername || 'selected username'}
-            <ArrowRight size={20} />
-          </Button>
+        {isSaving && (
+          <div className="text-center mt-6">
+            <div className="w-6 h-6 border-2 border-[#FF5722] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-sm text-gray-500">Saving username...</p>
+          </div>
+        )}
 
-          {error && (
-            <div className="bg-red-50 p-4 rounded-2xl flex gap-3 items-start border border-red-100">
-              <Sparkles size={20} className="text-red-500 shrink-0" />
-              <p className="text-sm leading-relaxed text-red-600">{error}</p>
-            </div>
-          )}
-
-          <div className="bg-gray-50 p-4 rounded-2xl flex gap-3 items-start border border-gray-100">
-            <User size={20} className="text-[#FF5722] shrink-0" />
-            <p className="text-sm leading-relaxed text-gray-600">
-              Your username will be locked once selected. Choose wisely as it cannot be changed later.
+        {selectedUsername && !isSaving && (
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mt-6">
+            <p className="text-sm text-gray-600 text-center">
+              Username <span className="font-semibold">{selectedUsername}</span> selected! Click again to confirm.
             </p>
           </div>
-        </div>
+        )}
       </main>
-
-      <footer className="p-8 w-full max-w-md mx-auto text-center mt-auto">
-        <p className="text-[10px] uppercase tracking-widest text-gray-300 font-bold">Anonymous Identity</p>
-      </footer>
     </div>
   );
 };
